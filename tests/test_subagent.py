@@ -61,9 +61,11 @@ class TestParseTasks:
         assert tasks[1].goal == "扫 b.com"
 
     def test_dict_list(self) -> None:
-        tasks = parse_tasks_from_args([
-            {"goal": "扫 a.com", "max_subturns": 5, "allowed_tools": ["http_get"]},
-        ])
+        tasks = parse_tasks_from_args(
+            [
+                {"goal": "扫 a.com", "max_subturns": 5, "allowed_tools": ["http_get"]},
+            ]
+        )
         assert tasks[0].goal == "扫 a.com"
         assert tasks[0].max_subturns == 5
         assert tasks[0].allowed_tools == ["http_get"]
@@ -158,12 +160,8 @@ class TestSubAgentRun:
         assert "最大轮次" in (result.error or "")
         assert result.turns == 3
 
-    async def test_memory_block_in_system_prompt(
-        self, registry: ToolRegistry, fake_llm: MagicMock
-    ) -> None:
-        agent = SubAgent(
-            llm=fake_llm, registry=registry, memory_block="重要：xxx 漏洞"
-        )
+    async def test_memory_block_in_system_prompt(self, registry: ToolRegistry, fake_llm: MagicMock) -> None:
+        agent = SubAgent(llm=fake_llm, registry=registry, memory_block="重要：xxx 漏洞")
         await agent.run(SubAgentTask(goal="x"))
 
         sys_msg = fake_llm.chat.await_args.kwargs["messages"][0]["content"]
@@ -192,9 +190,7 @@ class TestOrchestrator:
 
     async def test_format_results_for_main(self, registry: ToolRegistry, fake_llm: MagicMock) -> None:
         orch = SubAgentOrchestrator(llm=fake_llm, registry=registry)
-        results = await orch.run_parallel(
-            [SubAgentTask(goal="X"), SubAgentTask(goal="Y")]
-        )
+        results = await orch.run_parallel([SubAgentTask(goal="X"), SubAgentTask(goal="Y")])
         formatted = SubAgentOrchestrator.format_results_for_main(results)
         assert "已完成 2 个子任务" in formatted
         assert "目标: X" in formatted
@@ -203,6 +199,7 @@ class TestOrchestrator:
     async def test_concurrency_semaphore(self, registry: ToolRegistry) -> None:
         """验证 max_concurrency 真的限制了并发。"""
         import asyncio
+
         running_count = {"current": 0, "peak": 0}
 
         async def slow_chat(*args, **kwargs):

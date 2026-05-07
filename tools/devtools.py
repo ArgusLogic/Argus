@@ -118,21 +118,25 @@ async def _ensure_network_listening() -> None:
 
     # 1) 网络抓包
     async def on_request(request):
-        _network_log.append({
-            "type": "request",
-            "method": request.method,
-            "url": request.url,
-            "headers": dict(request.headers),
-            "resource_type": request.resource_type,
-        })
+        _network_log.append(
+            {
+                "type": "request",
+                "method": request.method,
+                "url": request.url,
+                "headers": dict(request.headers),
+                "resource_type": request.resource_type,
+            }
+        )
 
     async def on_response(response):
-        _network_log.append({
-            "type": "response",
-            "status": response.status,
-            "url": response.url,
-            "headers": dict(response.headers),
-        })
+        _network_log.append(
+            {
+                "type": "response",
+                "status": response.status,
+                "url": response.url,
+                "headers": dict(response.headers),
+            }
+        )
 
     page.on("request", on_request)
     page.on("response", on_response)
@@ -270,6 +274,7 @@ async def devtools_sse_log(filter: str = "", limit: str = "50", kind: str = "mes
 
     # 按 URL 分组渲染
     from collections import defaultdict
+
     grouped: dict[str, list[dict]] = defaultdict(list)
     for e in events[-max_count:]:
         grouped[e.get("url", "?")].append(e)

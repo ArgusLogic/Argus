@@ -49,9 +49,7 @@ class TestList:
         assert s["steps_count"] == 2
         assert s["success_count"] == 0
 
-    def test_list_skips_invalid_json(
-        self, skill_manager: SkillManager, sample_skill: dict[str, Any]
-    ) -> None:
+    def test_list_skips_invalid_json(self, skill_manager: SkillManager, sample_skill: dict[str, Any]) -> None:
         skill_manager.save_skill(sample_skill)
         # 写入一个坏 JSON 文件
         bad = os.path.join(skill_manager.skills_dir, "broken.json")
@@ -99,24 +97,36 @@ class TestFormatForPrompt:
         assert "示例侦察技能" in block
 
     def test_sort_by_success_count_desc(self, skill_manager: SkillManager) -> None:
-        skill_manager.save_skill({
-            "name": "low", "description": "x", "steps": [],
-            "success_count": 1,
-        })
-        skill_manager.save_skill({
-            "name": "high", "description": "y", "steps": [],
-            "success_count": 100,
-        })
+        skill_manager.save_skill(
+            {
+                "name": "low",
+                "description": "x",
+                "steps": [],
+                "success_count": 1,
+            }
+        )
+        skill_manager.save_skill(
+            {
+                "name": "high",
+                "description": "y",
+                "steps": [],
+                "success_count": 100,
+            }
+        )
         block = skill_manager.format_for_prompt()
         # high 应在 low 之前
         assert block.index("high") < block.index("low")
 
     def test_limit(self, skill_manager: SkillManager) -> None:
         for i in range(10):
-            skill_manager.save_skill({
-                "name": f"skill_{i}", "description": "x", "steps": [],
-                "success_count": i,
-            })
+            skill_manager.save_skill(
+                {
+                    "name": f"skill_{i}",
+                    "description": "x",
+                    "steps": [],
+                    "success_count": i,
+                }
+            )
         block = skill_manager.format_for_prompt(limit=3)
         # 只应包含最高 success_count 的 3 个
         assert "skill_9" in block

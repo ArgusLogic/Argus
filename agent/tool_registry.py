@@ -110,9 +110,7 @@ class ToolRegistry:
         for attempt in range(1 + max_retries):
             try:
                 if inspect.iscoroutinefunction(func):
-                    result = await asyncio.wait_for(
-                        func(**args), timeout=timeout
-                    )
+                    result = await asyncio.wait_for(func(**args), timeout=timeout)
                 else:
                     loop = asyncio.get_event_loop()
                     result = await asyncio.wait_for(
@@ -180,6 +178,7 @@ class ToolRegistry:
         # 仅写文件日志，不污染启动 banner
         try:
             from utils.logger import file_logger
+
             file_logger.write("INFO", f"工具自动发现完成: {len(new_tools)} 个新工具从 {package_dir}/ 注册")
         except Exception:
             pass

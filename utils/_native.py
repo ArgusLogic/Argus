@@ -24,6 +24,7 @@ _native = None  # type: ignore[assignment]
 if not _DISABLED:
     try:
         import argus_native as _candidate  # type: ignore[import-not-found]
+
         # 严格校验：必须是真正构建的 cdylib，含实际函数 + __version__
         if (
             hasattr(_candidate, "__version__")

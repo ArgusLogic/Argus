@@ -32,6 +32,7 @@ class FileLogger:
         """启用文件日志。"""
         if log_dir is None:
             from utils.paths import LOGS_DIR
+
             log_dir = LOGS_DIR
         os.makedirs(log_dir, exist_ok=True)
         date_str = datetime.now().strftime("%Y%m%d")

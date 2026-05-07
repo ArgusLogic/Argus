@@ -3,6 +3,7 @@
 import json
 import os
 from datetime import datetime
+from typing import Any
 
 from utils.logger import log_error, log_info, log_warning
 from utils.paths import SKILLS_DIR
@@ -19,7 +20,7 @@ class SkillManager:
         safe_name = name.replace("/", "_").replace("\\", "_")
         return os.path.join(self.skills_dir, f"{safe_name}.json")
 
-    def list_skills(self) -> list[dict]:
+    def list_skills(self) -> list[dict[str, Any]]:
         """返回所有技能的摘要列表。"""
         skills = []
         for filename in sorted(os.listdir(self.skills_dir)):
@@ -28,17 +29,19 @@ class SkillManager:
             try:
                 with open(os.path.join(self.skills_dir, filename), encoding="utf-8") as f:
                     skill = json.load(f)
-                skills.append({
-                    "name": skill["name"],
-                    "description": skill.get("description", ""),
-                    "steps_count": len(skill.get("steps", [])),
-                    "success_count": skill.get("success_count", 0),
-                })
+                skills.append(
+                    {
+                        "name": skill["name"],
+                        "description": skill.get("description", ""),
+                        "steps_count": len(skill.get("steps", [])),
+                        "success_count": skill.get("success_count", 0),
+                    }
+                )
             except Exception:
                 continue
         return skills
 
-    def get_skill(self, name: str) -> dict | None:
+    def get_skill(self, name: str) -> dict[str, Any] | None:
         """获取技能详情。"""
         path = self._skill_path(name)
         if not os.path.exists(path):
@@ -50,7 +53,7 @@ class SkillManager:
             log_error(f"读取技能失败 {name}: {e}")
             return None
 
-    def save_skill(self, skill: dict) -> None:
+    def save_skill(self, skill: dict[str, Any]) -> None:
         """保存技能。"""
         name = skill.get("name", "unnamed")
         skill.setdefault("created_at", datetime.now().isoformat())
@@ -92,7 +95,9 @@ class SkillManager:
 
         lines = ["## 可复用技能", "以下是你之前成功提炼的侦察技能，遇到类似任务时可以参考这些步骤：", ""]
         for s in skills:
-            lines.append(f"- **{s['name']}**: {s['description']} ({s['steps_count']} 步, 成功 {s['success_count']} 次)")
+            lines.append(
+                f"- **{s['name']}**: {s['description']} ({s['steps_count']} 步, 成功 {s['success_count']} 次)"
+            )
 
         return "\n".join(lines)
 

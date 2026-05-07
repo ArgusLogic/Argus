@@ -156,7 +156,9 @@ async def crawl_site_map(url: str, max_depth: str = "3", max_pages: str = "50") 
 
     try:
         async with httpx.AsyncClient(
-            timeout=10.0, verify=False, follow_redirects=True,
+            timeout=10.0,
+            verify=False,
+            follow_redirects=True,
             headers={"User-Agent": "Mozilla/5.0 Argus/0.1"},
         ) as client:
             while queue and len(visited) < page_limit:
@@ -192,7 +194,9 @@ async def crawl_site_map(url: str, max_depth: str = "3", max_pages: str = "50") 
                     full = urljoin(current_url, link)
                     link_domain = urlparse(full).netloc
                     if link_domain == base_domain:
-                        link_normalized = f"{urlparse(full).scheme}://{link_domain}{urlparse(full).path}".rstrip("/")
+                        link_normalized = (
+                            f"{urlparse(full).scheme}://{link_domain}{urlparse(full).path}".rstrip("/")
+                        )
                         if link_normalized not in visited:
                             queue.append((full, depth + 1))
 
@@ -213,22 +217,20 @@ async def crawl_site_map(url: str, max_depth: str = "3", max_pages: str = "50") 
 # 1) 完整 URL（http/https）
 _FULL_URL_RE = re.compile(
     r'["\']'
-    r'(https?://[a-zA-Z0-9\-\.]+(?::[0-9]+)?[a-zA-Z0-9/_\-\.\?&=%~#:@!$&*+,;]*)'
+    r"(https?://[a-zA-Z0-9\-\.]+(?::[0-9]+)?[a-zA-Z0-9/_\-\.\?&=%~#:@!$&*+,;]*)"
     r'["\']'
 )
 
 # 2) 高确信路径（含已知前缀）— 字符串字面量内
 _API_PATH_RE = re.compile(
     r'["\'](/(?:api|v[0-9]+|graphql|rest|auth|oauth|user|admin|search|upload|download'
-    r'|mooc[a-z0-9\-]*|ai[\-_][a-z0-9\-]+|think|topic|answer|review|exam|quiz|chat|message)'
+    r"|mooc[a-z0-9\-]*|ai[\-_][a-z0-9\-]+|think|topic|answer|review|exam|quiz|chat|message)"
     r'[a-zA-Z0-9/_\-\.]*)["\']'
 )
 
 # 3) 宽路径：以 / 开头，至少含一个 /，长度 ≥ 5，全 URL 字符（启发式过滤）
 #    避免误抓注释/正则 — 必须在字符串字面量内（'...' 或 "..."）
-_BROAD_PATH_RE = re.compile(
-    r'["\'](\/[a-zA-Z][a-zA-Z0-9_\-]*\/[a-zA-Z0-9/_\-\.]{3,})["\']'
-)
+_BROAD_PATH_RE = re.compile(r'["\'](\/[a-zA-Z][a-zA-Z0-9_\-]*\/[a-zA-Z0-9/_\-\.]{3,})["\']')
 
 # 4) 模板字符串里的 URL —— `/path/${param}` 或 `${base}/path`
 _TEMPLATE_URL_RE = re.compile(
@@ -252,7 +254,7 @@ _AJAX_OPTS_URL_RE = re.compile(
 
 # 7) 敏感关键词
 _SENSITIVE_RE = re.compile(
-    r'(?:api[_-]?key|apikey|secret|token|password|passwd|credential|auth_?token|bearer)'
+    r"(?:api[_-]?key|apikey|secret|token|password|passwd|credential|auth_?token|bearer)"
     r'\s*[:=]\s*["\']([^"\'\s>]{8,})["\']',
     re.IGNORECASE,
 )
@@ -262,7 +264,10 @@ _SENSITIVE_RE = re.compile(
 _VALID_PATH_RE = re.compile(r"^/[a-zA-Z0-9][a-zA-Z0-9/_\-\.\?&=%~#${}@!:,;]*$")
 # 黑名单：纯 CSS/MIME/正则匹配会进来
 _PATH_BLACKLIST = {
-    "/", "/.", "/..", "//",
+    "/",
+    "/.",
+    "/..",
+    "//",
 }
 
 
@@ -281,8 +286,19 @@ def _is_likely_endpoint(path: str) -> bool:
     lower = path.lower()
     return not any(
         lower.endswith(ext)
-        for ext in (".css", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-                    ".woff", ".woff2", ".ttf", ".eot")
+        for ext in (
+            ".css",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".gif",
+            ".svg",
+            ".ico",
+            ".woff",
+            ".woff2",
+            ".ttf",
+            ".eot",
+        )
     )
 
 
@@ -305,27 +321,27 @@ async def crawl_js_endpoints(js_url: str = "") -> str:
     else:
         # 从当前页面获取所有 JS URL
         page = await get_page()
-        js_urls = await page.eval_on_selector_all(
-            "script[src]", "elements => elements.map(e => e.src)"
-        )
+        js_urls = await page.eval_on_selector_all("script[src]", "elements => elements.map(e => e.src)")
 
     if not js_urls:
         return "未找到 JS 文件可供分析"
 
-    high_confidence: set[str] = set()   # 已知前缀的 API 路径
-    broad_paths: set[str] = set()       # 启发式发现的其它路径
-    template_urls: set[str] = set()     # 模板字符串
-    ajax_calls: set[str] = set()        # fetch/axios/EventSource 等
-    all_urls: set[str] = set()          # 完整 http(s):// URL
+    high_confidence: set[str] = set()  # 已知前缀的 API 路径
+    broad_paths: set[str] = set()  # 启发式发现的其它路径
+    template_urls: set[str] = set()  # 模板字符串
+    ajax_calls: set[str] = set()  # fetch/axios/EventSource 等
+    all_urls: set[str] = set()  # 完整 http(s):// URL
     all_secrets: list[str] = []
     analyzed = 0
 
     # 接受 gzip/deflate；httpx 会自动解压。User-Agent 用真实浏览器避免被某些 CDN 拒绝
     async with httpx.AsyncClient(
-        timeout=30.0, verify=False, follow_redirects=True,
+        timeout=30.0,
+        verify=False,
+        follow_redirects=True,
         headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                          "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
             "Accept-Encoding": "gzip, deflate, br",
         },
     ) as client:

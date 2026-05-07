@@ -27,9 +27,7 @@ from utils.sanitizer import sanitize_url, truncate
 async def dns_lookup(domain: str, record_type: str = "ALL") -> str:
     domain = domain.strip().rstrip(".")
     record_types = (
-        [record_type.upper()]
-        if record_type.upper() != "ALL"
-        else ["A", "AAAA", "MX", "NS", "TXT", "CNAME"]
+        [record_type.upper()] if record_type.upper() != "ALL" else ["A", "AAAA", "MX", "NS", "TXT", "CNAME"]
     )
 
     results = []
@@ -138,7 +136,8 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
 
     try:
         async with httpx.AsyncClient(
-            timeout=10.0, verify=False,
+            timeout=10.0,
+            verify=False,
             headers={"User-Agent": "Mozilla/5.0 Argus/0.1"},
         ) as client:
             tasks = [check_path(client, path) for path in DIRECTORIES]
@@ -168,7 +167,9 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
         },
     },
 )
-async def port_scan(target: str, ports: str = "21-25,53,80,110,143,443,993,995,3306,3389,5432,6379,8080,8443,8888,9090,27017") -> str:
+async def port_scan(
+    target: str, ports: str = "21-25,53,80,110,143,443,993,995,3306,3389,5432,6379,8080,8443,8888,9090,27017"
+) -> str:
     target = target.strip()
 
     def _scan():
@@ -289,7 +290,9 @@ async def header_analysis(url: str) -> str:
 
     try:
         async with httpx.AsyncClient(
-            timeout=15.0, verify=False, follow_redirects=True,
+            timeout=15.0,
+            verify=False,
+            follow_redirects=True,
             headers={"User-Agent": "Mozilla/5.0 Argus/0.1"},
         ) as client:
             resp = await client.get(url)

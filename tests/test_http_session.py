@@ -78,16 +78,19 @@ class TestHttpRequestSessionInjection:
             assert "Cookie" not in sent_headers
 
     async def test_session_injected_when_enabled(self) -> None:
-        with patch(
-            "tools.browser.get_browser_session",
-            new=AsyncMock(
-                return_value={
-                    "cookies": "k1=v1; k2=v2",
-                    "user_agent": "BrowserUA/1.0",
-                    "referer": "https://app.example.com/",
-                }
+        with (
+            patch(
+                "tools.browser.get_browser_session",
+                new=AsyncMock(
+                    return_value={
+                        "cookies": "k1=v1; k2=v2",
+                        "user_agent": "BrowserUA/1.0",
+                        "referer": "https://app.example.com/",
+                    }
+                ),
             ),
-        ), patch("tools.http_client.httpx.AsyncClient") as MockClient:
+            patch("tools.http_client.httpx.AsyncClient") as MockClient,
+        ):
             mock_client = MockClient.return_value.__aenter__.return_value
             mock_client.request = AsyncMock(return_value=_make_resp())
 
@@ -102,12 +105,13 @@ class TestHttpRequestSessionInjection:
 
     async def test_user_headers_take_precedence(self) -> None:
         """用户显式给的 Cookie 优先于浏览器自动注入的。"""
-        with patch(
-            "tools.browser.get_browser_session",
-            new=AsyncMock(
-                return_value={"cookies": "auto=session", "user_agent": "auto", "referer": ""}
+        with (
+            patch(
+                "tools.browser.get_browser_session",
+                new=AsyncMock(return_value={"cookies": "auto=session", "user_agent": "auto", "referer": ""}),
             ),
-        ), patch("tools.http_client.httpx.AsyncClient") as MockClient:
+            patch("tools.http_client.httpx.AsyncClient") as MockClient,
+        ):
             mock_client = MockClient.return_value.__aenter__.return_value
             mock_client.request = AsyncMock(return_value=_make_resp())
 
@@ -121,9 +125,10 @@ class TestHttpRequestSessionInjection:
             assert sent["Cookie"] == "user=manual"  # 用户值保留
 
     async def test_warning_when_browser_inactive(self) -> None:
-        with patch(
-            "tools.browser.get_browser_session", new=AsyncMock(return_value={})
-        ), patch("tools.http_client.httpx.AsyncClient") as MockClient:
+        with (
+            patch("tools.browser.get_browser_session", new=AsyncMock(return_value={})),
+            patch("tools.http_client.httpx.AsyncClient") as MockClient,
+        ):
             mock_client = MockClient.return_value.__aenter__.return_value
             mock_client.request = AsyncMock(return_value=_make_resp())
 
@@ -161,7 +166,7 @@ class TestHttpResponseIntegrity:
         # 重定向 OUTPUT_DIR 到 tmp
         monkeypatch.setattr("tools.http_client.OUTPUT_DIR", str(tmp_path))
 
-        big_js = (b"// js content\n" * 5000)  # ~75KB
+        big_js = b"// js content\n" * 5000  # ~75KB
         with patch("tools.http_client.httpx.AsyncClient") as MockClient:
             mock_client = MockClient.return_value.__aenter__.return_value
             mock_client.request = AsyncMock(return_value=_make_resp(body=big_js))

@@ -78,7 +78,11 @@ class SecurityBlock(ArgusError):
     recoverable: bool = False
 
     def __str__(self) -> str:
-        return f"[{self.code}] 操作被拦截: {self.message} (原因: {self.reason})" if self.reason else f"[{self.code}] {self.message}"
+        return (
+            f"[{self.code}] 操作被拦截: {self.message} (原因: {self.reason})"
+            if self.reason
+            else f"[{self.code}] {self.message}"
+        )
 
 
 @dataclass

@@ -117,6 +117,7 @@ async def generate_report(
 
     # 保存到文件
     from utils.paths import REPORTS_DIR
+
     report_dir = REPORTS_DIR
     os.makedirs(report_dir, exist_ok=True)
     filepath = os.path.join(report_dir, filename)

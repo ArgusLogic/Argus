@@ -131,6 +131,7 @@ class TestPersistence:
 
         # 新实例读
         from agent.memory_md import MemoryMD as MD2
+
         fresh = MD2()
         entries = fresh.list_entries("memory")
         assert len(entries) == 3

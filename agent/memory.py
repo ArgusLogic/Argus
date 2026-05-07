@@ -72,7 +72,7 @@ class MemoryStore:
             await db.commit()
             memory_id = cursor.lastrowid
             log_info(f"记忆已保存 [#{memory_id} {category}]: {content[:60]}")
-            return memory_id
+            return memory_id or 0
         finally:
             await db.close()
 
@@ -170,7 +170,8 @@ class MemoryStore:
         db = await self._get_db()
         try:
             cursor = await db.execute("SELECT COUNT(*) FROM memories")
-            count = (await cursor.fetchone())[0]
+            row = await cursor.fetchone()
+            count = row[0] if row else 0
             await db.execute("DELETE FROM memories")
             await db.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
             await db.commit()
@@ -184,7 +185,8 @@ class MemoryStore:
         db = await self._get_db()
         try:
             cursor = await db.execute("SELECT COUNT(*) FROM memories")
-            return (await cursor.fetchone())[0]
+            row = await cursor.fetchone()
+            return row[0] if row else 0
         finally:
             await db.close()
 
@@ -221,9 +223,10 @@ class MemoryStore:
         if task.strip():
             # 用空格分词作为 OR 查询，过滤特殊字符防止 FTS5 语法错误
             import re
+
             tokens = task.strip().split()
             # 只保留中文、字母、数字组成的 token
-            safe_tokens = [t for t in tokens if re.match(r'^[\w\u4e00-\u9fff]+$', t)]
+            safe_tokens = [t for t in tokens if re.match(r"^[\w\u4e00-\u9fff]+$", t)]
             if safe_tokens:
                 # FTS5 需要用双引号包裹每个 token
                 fts_query = " OR ".join(f'"{t}"' for t in safe_tokens[:5])

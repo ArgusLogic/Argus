@@ -74,7 +74,7 @@ async def request_replay_list(filter: str = "", limit: str = "30") -> str:
         },
         "modify_headers": {
             "type": "string",
-            "description": "可选：覆盖请求头的 JSON 字符串，如 '{\"X-Custom\": \"val\"}'",
+            "description": '可选：覆盖请求头的 JSON 字符串，如 \'{"X-Custom": "val"}\'',
             "required": False,
         },
         "modify_body": {

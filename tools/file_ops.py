@@ -16,6 +16,7 @@ def _resolve_path(filepath: str) -> str:
 
     # 相对路径：存到 ~/.argus/output/reports/ 下
     from utils.paths import REPORTS_DIR
+
     os.makedirs(REPORTS_DIR, exist_ok=True)
     return os.path.join(REPORTS_DIR, os.path.basename(filepath))
 
@@ -24,7 +25,10 @@ def _resolve_path(filepath: str) -> str:
     name="save_file",
     description="将文本内容保存到指定文件路径。支持绝对路径（如 C:/Users/用户/Desktop/report.md）或仅文件名（默认保存到 output/reports/）。可通过 ~/Desktop/file.md 保存到用户桌面。",
     params={
-        "filename": {"type": "string", "description": "文件路径。支持：1) 绝对路径如 'C:/Users/23725/Desktop/report.md'；2) 相对路径如 '~/Desktop/report.md'；3) 仅文件名如 'report.md'（默认存到 output/reports/）"},
+        "filename": {
+            "type": "string",
+            "description": "文件路径。支持：1) 绝对路径如 'C:/Users/23725/Desktop/report.md'；2) 相对路径如 '~/Desktop/report.md'；3) 仅文件名如 'report.md'（默认存到 output/reports/）",
+        },
         "content": {"type": "string", "description": "要保存的文本内容"},
     },
 )
@@ -66,6 +70,7 @@ async def read_file(filename: str) -> str:
 
     # 否则在 ~/.argus/output 目录下搜索
     from utils.paths import OUTPUT_DIR
+
     output_dir = OUTPUT_DIR
     safe_name = os.path.basename(filename)
     for root, _dirs, files in os.walk(output_dir):

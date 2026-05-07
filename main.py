@@ -3,6 +3,7 @@
 import asyncio
 import os
 import sys
+from typing import Any
 
 import toml
 from rich.table import Table
@@ -74,6 +75,7 @@ def print_banner(model: str) -> None:
 
     # 元信息：3 行同样居中
     from utils._native import has_native
+
     native_tag = "[#3fb950]⚡rust[/]" if has_native() else "[#484f58]py[/]"
     info_lines = [
         f"[bold #e6edf3]Argus[/] [#7d8590]v0.1[/] [#484f58]·[/] [#7d8590]{model_short}[/]",
@@ -92,6 +94,7 @@ def print_banner(model: str) -> None:
         '"抓包并分析 API 接口"',
     ]
     import random
+
     tip = random.choice(tips)
     console.print(Align.center(RichText.from_markup(f"[#484f58]›  Try {tip}[/]")))
     console.print()
@@ -146,7 +149,9 @@ _AVAILABLE_MODELS = [
 _EFFORT_LEVELS = ["off", "high", "max"]
 
 
-async def _interactive_model_select(current_model: str, current_effort: str | None) -> tuple[str | None, str | None]:
+async def _interactive_model_select(
+    current_model: str, current_effort: str | None
+) -> tuple[str | None, str | None]:
     """内联式模型选择器：↑↓ 切换模型，← → 切换 effort，Enter 确认，Esc 取消。"""
     from prompt_toolkit import Application
     from prompt_toolkit.formatted_text import FormattedText
@@ -166,7 +171,7 @@ async def _interactive_model_select(current_model: str, current_effort: str | No
     selected_idx = model_ids.index(current_model) if current_model in model_ids else 0
     effort = current_effort or "high"
     effort_idx = _EFFORT_LEVELS.index(effort) if effort in _EFFORT_LEVELS else 1
-    result = {"model": None, "effort": None}
+    result: dict[str, str | None] = {"model": None, "effort": None}
 
     kb = KeyBindings()
 
@@ -207,8 +212,8 @@ async def _interactive_model_select(current_model: str, current_effort: str | No
         lines.append(("", "切换模型。↑↓ 选择模型，← → 调整思考强度，Enter 确认，Esc 取消。\n\n"))
 
         for i, (model_id, desc) in enumerate(models):
-            is_current = (model_id == current_model)
-            is_selected = (i == selected_idx)
+            is_current = model_id == current_model
+            is_selected = i == selected_idx
 
             if is_selected:
                 prefix = "› "
@@ -237,13 +242,14 @@ async def _interactive_model_select(current_model: str, current_effort: str | No
         return FormattedText(lines)
 
     control = FormattedTextControl(_get_text)
-    app = Application(
+    app: Application = Application(
         layout=Layout(Window(control)),
         key_bindings=kb,
         full_screen=False,
     )
 
     import contextlib
+
     with contextlib.suppress(KeyboardInterrupt, EOFError):
         await app.run_async()
 
@@ -274,7 +280,7 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
                 if new_effort != engine.llm.reasoning_effort:
                     engine.llm.reasoning_effort = new_effort
                     labels = {"off": "💤 Off", "high": "🧠 High", "max": "🔥 Max"}
-                    log_info(f"思考强度: {labels.get(new_effort, new_effort)}")
+                    log_info(f"思考强度: {labels.get(new_effort or '', new_effort or '')}")
 
     elif command == "/yolo":
         engine.approval_mode = False
@@ -300,14 +306,21 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
     elif command == "/memory":
         # 显示当前 MEMORY.md 和 USER.md 内容（含容量条）
         from rich.panel import Panel
-        console.print(Panel(
-            engine.memory_md.render_block("memory"),
-            border_style="cyan", padding=(0, 1),
-        ))
-        console.print(Panel(
-            engine.memory_md.render_block("user"),
-            border_style="magenta", padding=(0, 1),
-        ))
+
+        console.print(
+            Panel(
+                engine.memory_md.render_block("memory"),
+                border_style="cyan",
+                padding=(0, 1),
+            )
+        )
+        console.print(
+            Panel(
+                engine.memory_md.render_block("user"),
+                border_style="magenta",
+                padding=(0, 1),
+            )
+        )
 
     elif command == "/session":
         if len(parts) < 2:
@@ -341,8 +354,10 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
         elif parts[1] == "list":
             skills = engine.skills.list_skills()
             if skills:
-                for s in skills:
-                    console.print(f"  [bold]{s['name']}[/bold] — {s['description']} ({s['steps_count']} 步, 成功 {s['success_count']} 次)")
+                for sk in skills:
+                    console.print(
+                        f"  [bold]{sk['name']}[/bold] — {sk['description']} ({sk['steps_count']} 步, 成功 {sk['success_count']} 次)"
+                    )
             else:
                 log_info("暂无已保存的技能")
         elif parts[1] == "show":
@@ -350,6 +365,7 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
                 log_warning("用法: /skills show <name>")
             else:
                 import json as _json
+
                 skill = engine.skills.get_skill(parts[2])
                 if skill:
                     console.print(_json.dumps(skill, ensure_ascii=False, indent=2))
@@ -363,6 +379,7 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
 
     elif command == "/clear":
         from agent.prompts import SYSTEM_PROMPT
+
         engine.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         log_info("上下文已清空")
 
@@ -378,11 +395,13 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
 async def main() -> None:
     """主函数：初始化并运行 CLI 交互循环。"""
     from utils.paths import ensure_dirs
+
     ensure_dirs()  # 确保 ~/.argus/ 目录结构存在
 
     # 一次性迁移旧 SQLite 记忆到 MD 文件（无副作用，已迁移过会跳过）
     try:
         from agent.memory_migrate import migrate_once
+
         await migrate_once()
     except Exception as e:
         log_warning(f"记忆迁移跳过: {e}")
@@ -438,9 +457,11 @@ async def main() -> None:
         try:
             mode = "yolo" if not engine.approval_mode else "agent"
             prompt = get_prompt_text(model=engine.llm.model, mode=mode)
-            user_input = await asyncio.get_event_loop().run_in_executor(
-                None, lambda p=prompt: prompt_session.prompt(p)
-            )
+
+            def _read_prompt(p: Any = prompt) -> str:
+                return prompt_session.prompt(p)
+
+            user_input = await asyncio.get_event_loop().run_in_executor(None, _read_prompt)
             user_input = user_input.strip()
         except (EOFError, KeyboardInterrupt):
             console.print("\n再见！")
@@ -468,8 +489,11 @@ async def main() -> None:
             await engine.run_stream(user_input, ui=ui)
             # 累积统计
             session_stats.add_turn(
-                engine.llm.model, ui._input_tokens, ui._output_tokens,
-                cache_hit=ui._cache_hit_tokens, cache_miss=ui._cache_miss_tokens,
+                engine.llm.model,
+                ui._input_tokens,
+                ui._output_tokens,
+                cache_hit=ui._cache_hit_tokens,
+                cache_miss=ui._cache_miss_tokens,
             )
         except KeyboardInterrupt:
             if ui and ui._live:
@@ -489,8 +513,10 @@ async def main() -> None:
 
     # 清理资源
     import contextlib
+
     with contextlib.suppress(Exception):
         from tools.browser import close_browser
+
         await close_browser()
     file_logger.close()
 

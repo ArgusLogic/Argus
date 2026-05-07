@@ -122,6 +122,7 @@ class SubAgent:
     async def run(self, task: SubAgentTask) -> SubAgentResult:
         """执行一个子任务，返回结构化结果。"""
         import time
+
         start = time.monotonic()
 
         messages: list[dict] = [
@@ -147,7 +148,7 @@ class SubAgent:
                     error = "LLM 返回 None"
                     break
 
-                choice = response.choices[0]
+                choice = response.choices[0]  # type: ignore[attr-defined]
                 msg = choice.message
 
                 assistant_msg: dict = {"role": "assistant", "content": msg.content or ""}
@@ -179,9 +180,7 @@ class SubAgent:
                         max_retries=self.max_retries,
                         silent=True,
                     )
-                    messages.append(
-                        {"role": "tool", "tool_call_id": tc.id, "content": result}
-                    )
+                    messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
             else:
                 error = f"达到最大轮次 {task.max_subturns}"
         except APIBalanceError as e:
@@ -247,9 +246,7 @@ class SubAgentOrchestrator:
                         error=f"超时 ({task.timeout_seconds}s)",
                     )
 
-        results = await asyncio.gather(
-            *(_runner(t) for t in tasks), return_exceptions=False
-        )
+        results = await asyncio.gather(*(_runner(t) for t in tasks), return_exceptions=False)
 
         ok = sum(1 for r in results if r.success)
         log_info(f"子代理并行完成: {ok}/{len(results)} 成功")
@@ -261,7 +258,9 @@ class SubAgentOrchestrator:
         lines = [f"已完成 {len(results)} 个子任务:\n"]
         for i, r in enumerate(results, 1):
             status = "✓" if r.success else "✗"
-            lines.append(f"\n--- 子任务 {i} {status} ({r.turns} 轮, {r.tool_calls_count} 工具调用, {r.elapsed_seconds:.1f}s) ---")
+            lines.append(
+                f"\n--- 子任务 {i} {status} ({r.turns} 轮, {r.tool_calls_count} 工具调用, {r.elapsed_seconds:.1f}s) ---"
+            )
             lines.append(f"目标: {r.goal}")
             if r.error:
                 lines.append(f"错误: {r.error}")

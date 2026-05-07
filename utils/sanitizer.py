@@ -109,8 +109,8 @@ def sanitize_domain(value: str) -> str | None:
 # CSI 序列 + OSC + 单字符控制
 _ANSI_RE = re.compile(
     r"\x1b\[[0-?]*[ -/]*[@-~]"  # CSI
-    r"|\x1b\][^\x07]*\x07"        # OSC ... BEL
-    r"|\x1b[@-Z\\-_]"             # Fe (单字节 ESC)
+    r"|\x1b\][^\x07]*\x07"  # OSC ... BEL
+    r"|\x1b[@-Z\\-_]"  # Fe (单字节 ESC)
 )
 
 
@@ -172,7 +172,11 @@ def _py_redact_secrets(text: str) -> str:
         return text
     for label, pattern in _REDACT_PATTERNS:
         if label in {"password", "api_key"}:
-            text = pattern.sub(lambda m, lbl=label: m.group(0)[: m.start(1) - m.start(0)] + f"[REDACTED:{lbl}]", text)
+
+            def _replace(m: re.Match[str], lbl: str = label) -> str:
+                return m.group(0)[: m.start(1) - m.start(0)] + f"[REDACTED:{lbl}]"
+
+            text = pattern.sub(_replace, text)
         else:
             text = pattern.sub(f"[REDACTED:{label}]", text)
     return text

@@ -20,13 +20,15 @@ def _reset_log():
 
 
 def _push_request(method: str, url: str, headers: dict | None = None) -> None:
-    dt._network_log.append({
-        "type": "request",
-        "method": method,
-        "url": url,
-        "headers": headers or {},
-        "resource_type": "fetch",
-    })
+    dt._network_log.append(
+        {
+            "type": "request",
+            "method": method,
+            "url": url,
+            "headers": headers or {},
+            "resource_type": "fetch",
+        }
+    )
 
 
 def _push_response(status: int, url: str) -> None:
@@ -112,12 +114,16 @@ class TestReplay:
             assert sent_headers["B"] == "3"  # added
 
     async def test_strips_hop_by_hop_headers(self) -> None:
-        _push_request("GET", "https://x.com", headers={
-            "Connection": "keep-alive",
-            "Host": "evil.com",
-            "Content-Length": "100",
-            "X-Real": "keep",
-        })
+        _push_request(
+            "GET",
+            "https://x.com",
+            headers={
+                "Connection": "keep-alive",
+                "Host": "evil.com",
+                "Content-Length": "100",
+                "X-Real": "keep",
+            },
+        )
 
         with patch("tools.http_client.httpx.AsyncClient") as MockClient:
             mock_client = MockClient.return_value.__aenter__.return_value

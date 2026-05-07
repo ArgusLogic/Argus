@@ -14,7 +14,14 @@ import contextlib
 import os
 import time
 
-from playwright.async_api import Browser, BrowserContext, Page, async_playwright
+from playwright.async_api import (
+    Browser,
+    BrowserContext,
+    Frame,
+    Page,
+    Playwright,
+    async_playwright,
+)
 
 from agent.tool_registry import registry
 from utils.logger import log_warning
@@ -32,11 +39,11 @@ class BrowserPool:
     """单例式 Playwright 浏览器资源池。"""
 
     def __init__(self, max_idle_seconds: int = 600) -> None:
-        self._playwright = None
+        self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._context: BrowserContext | None = None
         self._page: Page | None = None
-        self._active_frame = None  # type: ignore[var-annotated]  # iframe 上下文（A7）
+        self._active_frame: Frame | None = None  # iframe 上下文（A7）
         self._lock = asyncio.Lock()
         self._last_used: float = 0.0
         self.max_idle_seconds = max_idle_seconds
@@ -275,6 +282,7 @@ async def browser_get_text(selector: str = "") -> str:
 async def browser_screenshot(filename: str = "screenshot.png") -> str:
     page = await get_page()
     from utils.paths import SCREENSHOTS_DIR
+
     screenshot_dir = SCREENSHOTS_DIR
     os.makedirs(screenshot_dir, exist_ok=True)
     filepath = os.path.join(screenshot_dir, filename)
@@ -375,10 +383,9 @@ _BUILTIN_WAITS = {"page_loaded", "network_idle", "ajax_complete", "sse_closed", 
         },
     },
 )
-async def browser_wait_for(
-    condition: str, timeout: str = "30000", poll_interval: str = "500"
-) -> str:
+async def browser_wait_for(condition: str, timeout: str = "30000", poll_interval: str = "500") -> str:
     import time as _time
+
     page = await get_page()
     try:
         timeout_ms = int(timeout)
@@ -399,7 +406,7 @@ async def browser_wait_for(
                 "network_idle": "networkidle",
             }
             if cond in mapping:
-                await page.wait_for_load_state(mapping[cond], timeout=timeout_ms)
+                await page.wait_for_load_state(mapping[cond], timeout=timeout_ms)  # type: ignore[arg-type]
             elif cond == "ajax_complete":
                 # 等所有 fetch/XHR 落地（启发式：document.readyState 完成 + jQuery active=0）
                 await page.wait_for_function(
@@ -415,12 +422,13 @@ async def browser_wait_for(
             return f"等待完成 [{cond}]，耗时 {elapsed}ms"
 
         # 2) 看起来像 CSS 选择器（含 #/./[ 或单纯 tag）
-        looks_css = (
-            cond.startswith(("#", ".", "[", ":"))
-            or (cond[:1].isalpha() and any(c in cond for c in (".", "#", "[", ">", " ", ":")))
+        looks_css = cond.startswith(("#", ".", "[", ":")) or (
+            cond[:1].isalpha() and any(c in cond for c in (".", "#", "[", ">", " ", ":"))
         )
         # 但 JS 表达式可能也含 . 和 #；启发式：含 === / != / && / || / function/ () => 一定是 JS
-        looks_js = any(s in cond for s in ("===", "!==", "==", "!=", "&&", "||", "=>", "()", "return ", "function"))
+        looks_js = any(
+            s in cond for s in ("===", "!==", "==", "!=", "&&", "||", "=>", "()", "return ", "function")
+        )
 
         if looks_js or not looks_css:
             await page.wait_for_function(
@@ -690,9 +698,7 @@ async def browser_keyboard(type: str, key: str, selector: str = "") -> str:
         },
     },
 )
-async def browser_download(
-    save_path: str, trigger_selector: str = "", timeout: str = "30000"
-) -> str:
+async def browser_download(save_path: str, trigger_selector: str = "", timeout: str = "30000") -> str:
     page = await get_page()
     try:
         timeout_ms = int(timeout)

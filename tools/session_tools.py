@@ -45,9 +45,7 @@ async def session_search(query: str, limit: int = 5) -> str:
 
     try:
         # 检查 messages 表是否存在
-        cursor = await db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='messages'"
-        )
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages'")
         if not await cursor.fetchone():
             return json.dumps(
                 {"ok": True, "results": [], "msg": "no saved sessions"},
@@ -87,7 +85,11 @@ async def session_search(query: str, limit: int = 5) -> str:
                 if pos > 0:
                     start = max(0, pos - 50)
                     end = min(len(snippet), pos + 150)
-                    snippet = ("..." if start > 0 else "") + snippet[start:end] + ("..." if end < len(snippet) else "")
+                    snippet = (
+                        ("..." if start > 0 else "")
+                        + snippet[start:end]
+                        + ("..." if end < len(snippet) else "")
+                    )
                 else:
                     snippet = snippet[:200] + "..."
 

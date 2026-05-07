@@ -38,9 +38,11 @@ _COST_PER_M: dict[str, dict] = {
 
 # ─── 数据结构 ─────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class ToolCallDisplay:
     """单次工具调用的显示状态。"""
+
     name: str
     args_str: str = ""
     status: str = "running"  # running / done / error
@@ -52,8 +54,18 @@ class ToolCallDisplay:
 # ─── Prompt Toolkit 输入 ──────────────────────────────────────────────────────
 
 _SLASH_COMMANDS = [
-    "/help", "/tools", "/model", "/session", "/memory", "/skills",
-    "/clear", "/exit", "/cost", "/yolo", "/agent", "/effort",
+    "/help",
+    "/tools",
+    "/model",
+    "/session",
+    "/memory",
+    "/skills",
+    "/clear",
+    "/exit",
+    "/cost",
+    "/yolo",
+    "/agent",
+    "/effort",
 ]
 
 _cmd_completer = WordCompleter(
@@ -85,6 +97,7 @@ class _SafeFileHistory(FileHistory):
 def create_prompt_session() -> PromptSession:
     """创建带历史 + 自动补全的 PromptSession。"""
     from utils.paths import HISTORY_PATH
+
     history_path = HISTORY_PATH
     return PromptSession(
         history=_SafeFileHistory(history_path),
@@ -100,12 +113,12 @@ def get_prompt_text(model: str = "", mode: str = "agent") -> HTML:
     color = mode_colors.get(mode, "ansicyan")
     mode_tag = "" if mode == "agent" else f'<style fg="{color}">[{mode}]</style> '
     return HTML(
-        f'\n{mode_tag}<style fg="ansibrightblack">{model_short}</style>'
-        f' <b><style fg="{color}">› </style></b>'
+        f'\n{mode_tag}<style fg="ansibrightblack">{model_short}</style> <b><style fg="{color}">› </style></b>'
     )
 
 
 # ─── 核心 UI 渲染器 ──────────────────────────────────────────────────────────
+
 
 class LiveUI:
     """驱动 Agent 对话的终端实时渲染。"""
@@ -251,8 +264,9 @@ class LiveUI:
         self._input_tokens = input_tokens
         self._output_tokens = output_tokens
 
-    def finish(self, input_tokens: int = 0, output_tokens: int = 0,
-               cache_hit: int = 0, cache_miss: int = 0) -> None:
+    def finish(
+        self, input_tokens: int = 0, output_tokens: int = 0, cache_hit: int = 0, cache_miss: int = 0
+    ) -> None:
         """完成本次对话渲染。"""
         self._input_tokens = input_tokens
         self._output_tokens = output_tokens
@@ -275,7 +289,7 @@ class LiveUI:
         if not self._live:
             return
 
-        renderables = []
+        renderables: list = []
 
         # 正在执行的工具调用
         for tc in self._tool_calls:
@@ -284,11 +298,16 @@ class LiveUI:
 
         # 思考动画（显示 thinking 内容尾部）
         if self._phase == "thinking":
-            parts = []
-            parts.append(Columns([
-                Spinner("dots", style="cyan"),
-                Text(" thinking...", style="dim cyan"),
-            ], padding=(0, 0)))
+            parts: list = []
+            parts.append(
+                Columns(
+                    [
+                        Spinner("dots", style="cyan"),
+                        Text(" thinking...", style="dim cyan"),
+                    ],
+                    padding=(0, 0),
+                )
+            )
             # 显示 thinking 内容的最后几行
             if self._thinking_buffer.strip():
                 lines = self._thinking_buffer.strip().split("\n")
@@ -332,8 +351,11 @@ class LiveUI:
 
             # 费用估算（区分缓存命中价格）
             cost = _estimate_cost(
-                self._model, self._input_tokens, self._output_tokens,
-                self._cache_hit_tokens, self._cache_miss_tokens,
+                self._model,
+                self._input_tokens,
+                self._output_tokens,
+                self._cache_hit_tokens,
+                self._cache_miss_tokens,
             )
             if cost > 0:
                 parts.append(f"¥{cost:.4f}")
@@ -349,6 +371,7 @@ class LiveUI:
 
 # ─── 累积会话统计 ─────────────────────────────────────────────────────────────
 
+
 class SessionStats:
     """跟踪整个会话的 token 和费用累计。"""
 
@@ -358,8 +381,9 @@ class SessionStats:
         self.total_cost = 0.0
         self.turn_count = 0
 
-    def add_turn(self, model: str, input_tokens: int, output_tokens: int,
-                  cache_hit: int = 0, cache_miss: int = 0) -> None:
+    def add_turn(
+        self, model: str, input_tokens: int, output_tokens: int, cache_hit: int = 0, cache_miss: int = 0
+    ) -> None:
         self.total_input_tokens += input_tokens
         self.total_output_tokens += output_tokens
         self.total_cost += _estimate_cost(model, input_tokens, output_tokens, cache_hit, cache_miss)
@@ -375,9 +399,11 @@ class SessionStats:
 
 # ─── 辅助渲染函数 ─────────────────────────────────────────────────────────────
 
+
 def _render_inline_reply(text: str):
     """渲染 Agent 回复为无面板、前缀 ● 的内联样式（Claude Code 风格）。"""
     from rich.console import Group as _Group
+
     bullet = Text("● ", style="bold cyan")
     md = Markdown(text)
     # 将 ● 与 markdown 通过 Columns 拼在同一缩进下
@@ -397,11 +423,14 @@ def _render_tool_call_live(tc: ToolCallDisplay):
         (f"({args_preview})", "dim"),
     )
 
-    spinner_line = Columns([
-        Text("  ┃ ", style="dim"),
-        Spinner("dots", style="yellow"),
-        Text(f" running... ({elapsed:.1f}s)", style="dim yellow"),
-    ], padding=(0, 0))
+    spinner_line = Columns(
+        [
+            Text("  ┃ ", style="dim"),
+            Spinner("dots", style="yellow"),
+            Text(f" running... ({elapsed:.1f}s)", style="dim yellow"),
+        ],
+        padding=(0, 0),
+    )
 
     return Group(content, spinner_line)
 
@@ -474,16 +503,18 @@ def _truncate_result(result: str, max_lines: int = 3) -> str:
     return truncated + f"\n... ({len(lines) - max_lines} more lines)"
 
 
-def _estimate_cost(model: str, input_tokens: int, output_tokens: int,
-                   cache_hit: int = 0, cache_miss: int = 0) -> float:
+def _estimate_cost(
+    model: str, input_tokens: int, output_tokens: int, cache_hit: int = 0, cache_miss: int = 0
+) -> float:
     """估算费用（¥），区分缓存命中和未命中的输入价格。"""
     rates = _COST_PER_M.get(model)
     if not rates:
         return 0.0
     if cache_hit or cache_miss:
         # 精确计费：缓存命中用 cached 价，未命中用 input 价
-        input_cost = (cache_hit * rates.get("cached", rates["input"]) +
-                      cache_miss * rates["input"]) / 1_000_000
+        input_cost = (
+            cache_hit * rates.get("cached", rates["input"]) + cache_miss * rates["input"]
+        ) / 1_000_000
     else:
         input_cost = input_tokens * rates["input"] / 1_000_000
     output_cost = output_tokens * rates["output"] / 1_000_000

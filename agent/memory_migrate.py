@@ -49,16 +49,12 @@ async def migrate_once() -> dict:
             return {"migrated": 0, "skipped": -1, "msg": "already migrated"}
 
         # 检查 memories 表是否存在
-        cursor = await db.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='memories'"
-        )
+        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='memories'")
         if not await cursor.fetchone():
             await _mark_migrated(db)
             return {"migrated": 0, "skipped": 0, "msg": "no old memories table"}
 
-        cursor = await db.execute(
-            "SELECT category, content FROM memories ORDER BY id"
-        )
+        cursor = await db.execute("SELECT category, content FROM memories ORDER BY id")
         rows = await cursor.fetchall()
 
         if not rows:

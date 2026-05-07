@@ -172,10 +172,7 @@ class TestRedactSecrets:
         assert "[REDACTED:aws_access_key]" in result
 
     def test_jwt(self) -> None:
-        jwt = (
-            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0."
-            "abc123def456ghi"
-        )
+        jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abc123def456ghi"
         text = f"Authorization: {jwt}"
         result = redact_secrets(text)
         assert jwt not in result

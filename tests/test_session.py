@@ -27,11 +27,13 @@ async def test_save_and_load_round_trip() -> None:
 
 async def test_load_nonexistent_returns_none() -> None:
     from agent.session import load_session
+
     assert await load_session("does_not_exist") is None
 
 
 async def test_save_auto_generates_name() -> None:
     from agent.session import save_session
+
     messages = [{"role": "user", "content": "x"}]
     name = await save_session(messages)
     # 默认是 YYYYMMDD_HHMMSS 格式
@@ -108,6 +110,7 @@ async def test_delete_session() -> None:
 
 async def test_delete_nonexistent_returns_false() -> None:
     from agent.session import delete_session
+
     result = await delete_session("ghost")
     # 实现允许删除不存在的会话（DELETE 影响 0 行），返回 False
     assert result is False

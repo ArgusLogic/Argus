@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from typing import Any
 from urllib.parse import urlparse
 
 from agent.context import ContextManager
@@ -114,9 +115,7 @@ class AgentEngine:
         self.memory_md = MemoryMD()  # 新：MD 文件式持久记忆（agent 主动管）
         self.skills = SkillManager()
         self.prompt_builder = PromptBuilder()
-        self.messages: list[dict] = [
-            {"role": "system", "content": SYSTEM_PROMPT}
-        ]
+        self.messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
         # 冻结注入标记：MEMORY/USER 块只在首轮注入一次，保 prefix cache
         self._memory_injected = False
 
@@ -231,31 +230,24 @@ class AgentEngine:
                 if not allowed:
                     result = f"操作被拒绝：{acl_reason}"
                     log_warning(f"工具 ACL 拦截: {acl_reason}")
-                    self.messages.append(
-                        {"role": "tool", "tool_call_id": tc.id, "content": result}
-                    )
+                    self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                     continue
 
                 # 域名白名单校验
                 if not self._check_domain_whitelist(func_name, func_args):
-                    result = "操作被拒绝：目标不在允许的域名白名单内。请检查 config.toml 的 allowed_domains 配置。"
-                    log_warning(f"域名白名单拦截: {func_name}")
-                    self.messages.append(
-                        {"role": "tool", "tool_call_id": tc.id, "content": result}
+                    result = (
+                        "操作被拒绝：目标不在允许的域名白名单内。请检查 config.toml 的 allowed_domains 配置。"
                     )
+                    log_warning(f"域名白名单拦截: {func_name}")
+                    self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                     continue
 
                 # 审批机制：approval_mode 或 require_approval_for 列表都触发审批
                 risk = TOOL_RISK_LEVELS.get(func_name, "confirm")
-                needs_approval = (
-                    (self.approval_mode and risk != "safe")
-                    or self._force_approval(func_name)
-                )
+                needs_approval = (self.approval_mode and risk != "safe") or self._force_approval(func_name)
                 if needs_approval and not await self._ask_approval(func_name, func_args, risk):
                     result = "用户拒绝执行该操作"
-                    self.messages.append(
-                        {"role": "tool", "tool_call_id": tc.id, "content": result}
-                    )
+                    self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
                     continue
 
                 # 执行工具（带超时和重试）
@@ -267,9 +259,7 @@ class AgentEngine:
                 )
 
                 # 结果追加到消息
-                self.messages.append(
-                    {"role": "tool", "tool_call_id": tc.id, "content": result}
-                )
+                self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
         return final_text
 
@@ -312,6 +302,7 @@ class AgentEngine:
                 if ui:
                     # 流式模式：只写文件日志，不打印到终端（UI 已处理）
                     from utils.logger import file_logger
+
                     file_logger.write("INFO", f"Turn {turn} | Tokens: ~{token_count}")
                 else:
                     log_info(f"Turn {turn} | Tokens: ~{token_count}")
@@ -356,6 +347,7 @@ class AgentEngine:
                         APIRateLimit,
                         classify_llm_error,
                     )
+
                     err = classify_llm_error(e)
 
                     if isinstance(err, APIBalanceError):
@@ -374,7 +366,7 @@ class AgentEngine:
                         await asyncio.sleep(wait)
                         continue
 
-                    wait = 2 ** attempt
+                    wait = 2**attempt
                     log_error(f"LLM 流式调用异常 (第 {attempt + 1} 次): {err}")
                     if attempt < 2:
                         log_info(f"等待 {wait}s 后重试...")
@@ -391,7 +383,7 @@ class AgentEngine:
             total_cache_miss += usage.get("prompt_cache_miss_tokens", 0)
 
             # 将 assistant 消息追加到历史
-            assistant_msg = {"role": "assistant", "content": content}
+            assistant_msg: dict[str, Any] = {"role": "assistant", "content": content}
             # 保留 reasoning_content（DeepSeek V4 thinking mode 要求回传）
             if reasoning_content:
                 assistant_msg["reasoning_content"] = reasoning_content
@@ -415,9 +407,7 @@ class AgentEngine:
                 if not allowed:
                     result = f"操作被拒绝：{acl_reason}"
                     log_warning(f"工具 ACL 拦截: {acl_reason}")
-                    self.messages.append(
-                        {"role": "tool", "tool_call_id": tc_id, "content": result}
-                    )
+                    self.messages.append({"role": "tool", "tool_call_id": tc_id, "content": result})
                     if ui:
                         ui.add_tool_call(func_name, func_args)
                         ui.fail_tool_call(func_name, result, elapsed=0)
@@ -427,9 +417,7 @@ class AgentEngine:
                 if not self._check_domain_whitelist(func_name, func_args):
                     result = "操作被拒绝：目标不在允许的域名白名单内。"
                     log_warning(f"域名白名单拦截: {func_name}")
-                    self.messages.append(
-                        {"role": "tool", "tool_call_id": tc_id, "content": result}
-                    )
+                    self.messages.append({"role": "tool", "tool_call_id": tc_id, "content": result})
                     if ui:
                         ui.add_tool_call(func_name, func_args)
                         ui.fail_tool_call(func_name, result, elapsed=0)
@@ -437,10 +425,7 @@ class AgentEngine:
 
                 # 审批机制
                 risk = TOOL_RISK_LEVELS.get(func_name, "confirm")
-                needs_approval = (
-                    (self.approval_mode and risk != "safe")
-                    or self._force_approval(func_name)
-                )
+                needs_approval = (self.approval_mode and risk != "safe") or self._force_approval(func_name)
                 if needs_approval:
                     # 暂停 Live 渲染以显示审批提示
                     if ui and ui._live:
@@ -452,9 +437,7 @@ class AgentEngine:
                         # 恢复已完成的 sections
                     if not approved:
                         result = "用户拒绝执行该操作"
-                        self.messages.append(
-                            {"role": "tool", "tool_call_id": tc_id, "content": result}
-                        )
+                        self.messages.append({"role": "tool", "tool_call_id": tc_id, "content": result})
                         continue
 
                 # UI 显示工具开始
@@ -473,14 +456,19 @@ class AgentEngine:
                 elapsed = time.time() - t0
 
                 # 结果追加到消息
-                self.messages.append(
-                    {"role": "tool", "tool_call_id": tc_id, "content": result}
-                )
+                self.messages.append({"role": "tool", "tool_call_id": tc_id, "content": result})
 
                 # UI 显示工具完成
                 if ui:
                     # 只有工具执行器返回的错误前缀才标记失败
-                    if (result.startswith("工具") and ("执行失败" in result[:50] or "执行超时" in result[:50])) or result.startswith("保存失败") or result.startswith("读取失败"):
+                    if (
+                        (
+                            result.startswith("工具")
+                            and ("执行失败" in result[:50] or "执行超时" in result[:50])
+                        )
+                        or result.startswith("保存失败")
+                        or result.startswith("读取失败")
+                    ):
                         ui.fail_tool_call(func_name, result, elapsed=elapsed)
                     else:
                         ui.finish_tool_call(func_name, result, elapsed=elapsed)
@@ -488,8 +476,10 @@ class AgentEngine:
         # UI 完成
         if ui:
             ui.finish(
-                input_tokens=total_input_tokens, output_tokens=total_output_tokens,
-                cache_hit=total_cache_hit, cache_miss=total_cache_miss,
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+                cache_hit=total_cache_hit,
+                cache_miss=total_cache_miss,
             )
 
         return final_text
@@ -518,7 +508,7 @@ class AgentEngine:
                     log_error(f"LLM {err}")
                     raise err from e
 
-                wait = 2 ** attempt
+                wait = 2**attempt
                 log_error(f"LLM 调用异常 (第 {attempt + 1}/{max_attempts} 次): {err}")
                 if attempt < max_attempts - 1:
                     log_info(f"等待 {wait}s 后重试...")

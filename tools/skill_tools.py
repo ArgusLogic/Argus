@@ -9,6 +9,7 @@
 
 import json
 from datetime import datetime
+from typing import Any
 
 from agent.skills import SkillManager
 from agent.tool_registry import registry
@@ -87,7 +88,7 @@ async def skill_manage(
                 {"ok": False, "msg": f"技能 '{name}' 已存在，请用 patch 或 edit"},
                 ensure_ascii=False,
             )
-        skill = {
+        skill: dict[str, Any] = {
             "name": name,
             "description": description,
             "content": content,  # markdown 格式
@@ -99,15 +100,15 @@ async def skill_manage(
 
     # ── patch ──
     if action == "patch":
-        skill = _skills.get_skill(name)
-        if not skill:
+        existing = _skills.get_skill(name)
+        if not existing:
             return json.dumps({"ok": False, "msg": f"技能 '{name}' 不存在"}, ensure_ascii=False)
         if not old_string or not new_string:
             return json.dumps(
                 {"ok": False, "msg": "patch 需要 old_string 和 new_string"},
                 ensure_ascii=False,
             )
-        old_content = skill.get("content", "") or json.dumps(skill.get("steps", []), ensure_ascii=False)
+        old_content = existing.get("content", "") or json.dumps(existing.get("steps", []), ensure_ascii=False)
         if old_string not in old_content:
             return json.dumps(
                 {"ok": False, "msg": "old_string 在技能中未找到"},
@@ -118,23 +119,23 @@ async def skill_manage(
                 {"ok": False, "msg": "old_string 出现多次，请提供更具体的上下文"},
                 ensure_ascii=False,
             )
-        skill["content"] = old_content.replace(old_string, new_string, 1)
-        skill["updated_at"] = datetime.now().isoformat()
-        _skills.save_skill(skill)
+        existing["content"] = old_content.replace(old_string, new_string, 1)
+        existing["updated_at"] = datetime.now().isoformat()
+        _skills.save_skill(existing)
         return json.dumps({"ok": True, "msg": f"技能 '{name}' 已 patch"}, ensure_ascii=False)
 
     # ── edit ──
     if action == "edit":
-        skill = _skills.get_skill(name)
-        if not skill:
+        existing = _skills.get_skill(name)
+        if not existing:
             return json.dumps({"ok": False, "msg": f"技能 '{name}' 不存在"}, ensure_ascii=False)
         if not content:
             return json.dumps({"ok": False, "msg": "edit 需要 content"}, ensure_ascii=False)
-        skill["content"] = content
+        existing["content"] = content
         if description:
-            skill["description"] = description
-        skill["updated_at"] = datetime.now().isoformat()
-        _skills.save_skill(skill)
+            existing["description"] = description
+        existing["updated_at"] = datetime.now().isoformat()
+        _skills.save_skill(existing)
         return json.dumps({"ok": True, "msg": f"技能 '{name}' 已重写"}, ensure_ascii=False)
 
     # ── delete ──

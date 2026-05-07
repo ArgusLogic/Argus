@@ -2,6 +2,7 @@
 
 import json
 import os
+from typing import Any
 
 import httpx
 
@@ -26,7 +27,7 @@ from utils.sanitizer import sanitize_filename, sanitize_url, truncate
         },
         "headers": {
             "type": "string",
-            "description": "自定义请求头，JSON 格式字符串,如 '{\"Authorization\": \"Bearer xxx\"}'",
+            "description": '自定义请求头，JSON 格式字符串,如 \'{"Authorization": "Bearer xxx"}\'',
             "required": False,
         },
         "body": {
@@ -74,6 +75,7 @@ async def http_request(
     session_info = ""
     if str(use_browser_session).lower() in {"true", "1", "yes"}:
         from tools.browser import get_browser_session
+
         session = await get_browser_session(url=url)
         if session:
             if session.get("cookies") and "cookie" not in {k.lower() for k in custom_headers}:
@@ -96,7 +98,11 @@ async def http_request(
             follow_redirects=True,
             verify=False,
         ) as client:
-            kwargs = {"method": method, "url": url, "headers": custom_headers}
+            kwargs: dict[str, Any] = {
+                "method": method,
+                "url": url,
+                "headers": custom_headers,
+            }
             if body and method in ("POST", "PUT", "PATCH"):
                 kwargs["content"] = body
 

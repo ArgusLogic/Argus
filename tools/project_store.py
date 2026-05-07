@@ -125,8 +125,7 @@ async def project_list() -> str:
             name = obj.get("_project_name", f[:-5])
             updated = obj.get("updated_at", "?")
             keys = ", ".join(
-                k for k in obj
-                if not k.startswith("_") and k not in {"created_at", "updated_at"}
+                k for k in obj if not k.startswith("_") and k not in {"created_at", "updated_at"}
             )
             items.append((updated, name, keys))
         except Exception:

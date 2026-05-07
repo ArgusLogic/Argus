@@ -73,7 +73,11 @@ class TestNativeAttributesPresent:
 
     def test_proxy_attributes_exist(self) -> None:
         for name in (
-            "truncate", "strip_ansi", "redact_secrets",
-            "parse_entries", "dedup_check", "format_block",
+            "truncate",
+            "strip_ansi",
+            "redact_secrets",
+            "parse_entries",
+            "dedup_check",
+            "format_block",
         ):
             assert hasattr(_native, name), f"missing _native.{name}"

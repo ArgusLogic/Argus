@@ -82,11 +82,12 @@ class MemoryMD:
 
         # Rust 加速路径
         from utils._native import parse_entries as _native_parse
+
         if _native_parse is not None:
             return _native_parse(raw)
 
         # 纯 Python fallback
-        body_lines = []
+        body_lines: list[str] = []
         for line in raw.splitlines():
             if line.startswith("#") and not body_lines:
                 continue

@@ -13,6 +13,7 @@ from utils.logger import log_info, log_warning
 @dataclass
 class StreamEvent:
     """流式响应中的一个事件。"""
+
     type: str  # "text_delta" | "reasoning_delta" | "tool_call_start" | "tool_call_delta" | "done"
     text: str = ""
     tool_index: int = 0
@@ -119,9 +120,7 @@ class LLMClient:
         自动处理 tool_calls 的 delta 拼接，最终 yield 一个 done 事件
         包含完整的 content 和 tool_calls 列表。
         """
-        raw_stream = await self.chat_stream(
-            messages=messages, tools=tools, temperature=temperature
-        )
+        raw_stream = await self.chat_stream(messages=messages, tools=tools, temperature=temperature)
 
         full_content = ""
         full_reasoning = ""
@@ -200,14 +199,16 @@ class LLMClient:
         final_tool_calls = []
         for idx in sorted(tc_buffer.keys()):
             buf = tc_buffer[idx]
-            final_tool_calls.append({
-                "id": buf["id"],
-                "type": "function",
-                "function": {
-                    "name": buf["name"],
-                    "arguments": buf["arguments"],
-                },
-            })
+            final_tool_calls.append(
+                {
+                    "id": buf["id"],
+                    "type": "function",
+                    "function": {
+                        "name": buf["name"],
+                        "arguments": buf["arguments"],
+                    },
+                }
+            )
 
         yield StreamEvent(
             type="done",

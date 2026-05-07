@@ -36,12 +36,14 @@ class TestSseLogTool:
             assert "暂无 SSE 消息" in result
 
     async def test_filter_by_kind_default_message(self) -> None:
-        _push_sse([
-            {"kind": "open", "url": "https://x.com/sse"},
-            {"kind": "message", "url": "https://x.com/sse", "data": "hello"},
-            {"kind": "message", "url": "https://x.com/sse", "data": "world"},
-            {"kind": "close", "url": "https://x.com/sse"},
-        ])
+        _push_sse(
+            [
+                {"kind": "open", "url": "https://x.com/sse"},
+                {"kind": "message", "url": "https://x.com/sse", "data": "hello"},
+                {"kind": "message", "url": "https://x.com/sse", "data": "world"},
+                {"kind": "close", "url": "https://x.com/sse"},
+            ]
+        )
 
         with patch.object(dt, "_ensure_network_listening", new=AsyncMock()):
             result = await dt.devtools_sse_log(kind="message")
@@ -52,11 +54,13 @@ class TestSseLogTool:
         # （因为它们没有 data 字段，可能仍会出现 [open] 标签）
 
     async def test_kind_all_includes_open_close(self) -> None:
-        _push_sse([
-            {"kind": "open", "url": "https://x.com/sse"},
-            {"kind": "message", "url": "https://x.com/sse", "data": "ev1"},
-            {"kind": "close", "url": "https://x.com/sse"},
-        ])
+        _push_sse(
+            [
+                {"kind": "open", "url": "https://x.com/sse"},
+                {"kind": "message", "url": "https://x.com/sse", "data": "ev1"},
+                {"kind": "close", "url": "https://x.com/sse"},
+            ]
+        )
 
         with patch.object(dt, "_ensure_network_listening", new=AsyncMock()):
             result = await dt.devtools_sse_log(kind="all")
@@ -66,10 +70,12 @@ class TestSseLogTool:
         assert "ev1" in result
 
     async def test_url_filter(self) -> None:
-        _push_sse([
-            {"kind": "message", "url": "https://api.com/chat", "data": "A"},
-            {"kind": "message", "url": "https://other.com/feed", "data": "B"},
-        ])
+        _push_sse(
+            [
+                {"kind": "message", "url": "https://api.com/chat", "data": "A"},
+                {"kind": "message", "url": "https://other.com/feed", "data": "B"},
+            ]
+        )
 
         with patch.object(dt, "_ensure_network_listening", new=AsyncMock()):
             result = await dt.devtools_sse_log(filter="api.com")
@@ -78,11 +84,13 @@ class TestSseLogTool:
         assert "B" not in result
 
     async def test_grouped_by_url(self) -> None:
-        _push_sse([
-            {"kind": "message", "url": "https://a.com/s", "data": "a1"},
-            {"kind": "message", "url": "https://a.com/s", "data": "a2"},
-            {"kind": "message", "url": "https://b.com/s", "data": "b1"},
-        ])
+        _push_sse(
+            [
+                {"kind": "message", "url": "https://a.com/s", "data": "a1"},
+                {"kind": "message", "url": "https://a.com/s", "data": "a2"},
+                {"kind": "message", "url": "https://b.com/s", "data": "b1"},
+            ]
+        )
 
         with patch.object(dt, "_ensure_network_listening", new=AsyncMock()):
             result = await dt.devtools_sse_log(kind="all")

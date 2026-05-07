@@ -100,6 +100,7 @@ class TestReset:
 class TestCompatAPI:
     async def test_get_pool_returns_singleton(self) -> None:
         from tools.browser import get_pool
+
         a = get_pool()
         b = get_pool()
         assert a is b
@@ -109,6 +110,7 @@ class TestCompatAPI:
         import inspect
 
         from tools.browser import get_page
+
         sig = inspect.signature(get_page)
         assert "headed" in sig.parameters
         assert "timeout" in sig.parameters

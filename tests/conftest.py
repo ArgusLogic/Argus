@@ -65,8 +65,14 @@ def _isolate_argus_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
     for mod_name in ("agent.memory_md", "agent.skills", "agent.session", "agent.memory"):
         if mod_name in sys.modules:
             mod = sys.modules[mod_name]
-            for attr in ("MEMORY_MD_PATH", "USER_MD_PATH", "MEMORIES_DIR",
-                         "SKILLS_DIR", "DB_PATH", "SESSIONS_DIR"):
+            for attr in (
+                "MEMORY_MD_PATH",
+                "USER_MD_PATH",
+                "MEMORIES_DIR",
+                "SKILLS_DIR",
+                "DB_PATH",
+                "SESSIONS_DIR",
+            ):
                 if hasattr(mod, attr):
                     monkeypatch.setattr(mod, attr, getattr(paths_mod, attr))
 
@@ -88,6 +94,7 @@ def mock_llm() -> MagicMock:
 def memory_md(_isolate_argus_home: Path):
     """干净的 MemoryMD 实例。"""
     from agent.memory_md import MemoryMD
+
     return MemoryMD()
 
 
@@ -95,6 +102,7 @@ def memory_md(_isolate_argus_home: Path):
 def skill_manager(_isolate_argus_home: Path):
     """干净的 SkillManager 实例（显式传入 tmp 目录避免默认参数缓存）。"""
     from agent.skills import SkillManager
+
     return SkillManager(skills_dir=str(_isolate_argus_home / "skills"))
 
 
@@ -116,6 +124,7 @@ def sample_skill() -> dict[str, Any]:
 def quiet_logger(monkeypatch: pytest.MonkeyPatch) -> None:
     """关闭 console 的 ANSI 颜色，方便断言。"""
     from utils import logger
+
     monkeypatch.setattr(logger.console, "is_terminal", False)
 
 
