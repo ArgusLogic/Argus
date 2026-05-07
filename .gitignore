@@ -39,3 +39,6 @@ coverage.xml
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+
+# scratch files for git commit messages
+_msg.txt
