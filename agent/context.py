@@ -1,0 +1,127 @@
+"""上下文管理：token 计数与自动压缩（支持 LLM 智能摘要）。"""
+
+import tiktoken
+
+from utils.logger import log_info, log_warning
+
+
+class ContextManager:
+    """管理对话上下文，跟踪 token 使用并在必要时压缩。"""
+
+    def __init__(self, max_tokens: int = 120000, compress_threshold: float = 0.8):
+        self.max_tokens = max_tokens
+        self.compress_threshold = compress_threshold
+        self._llm = None  # 延迟注入，避免循环依赖
+        try:
+            self.encoder = tiktoken.encoding_for_model("gpt-4o")
+        except Exception:
+            self.encoder = tiktoken.get_encoding("cl100k_base")
+
+    def set_llm(self, llm) -> None:
+        """注入 LLM 客户端以启用智能摘要。"""
+        self._llm = llm
+
+    def count_tokens(self, messages: list[dict]) -> int:
+        """估算消息列表的 token 数量。"""
+        total = 0
+        for msg in messages:
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                total += len(self.encoder.encode(content))
+            # tool_calls 中的参数也计入
+            tool_calls = msg.get("tool_calls", [])
+            for tc in tool_calls:
+                func = tc.get("function", {})
+                total += len(self.encoder.encode(func.get("name", "")))
+                total += len(self.encoder.encode(func.get("arguments", "")))
+            # 每条消息的 role/name 等元数据约 4 token
+            total += 4
+        return total
+
+    def needs_compression(self, messages: list[dict]) -> bool:
+        """判断是否需要压缩上下文。"""
+        tokens = self.count_tokens(messages)
+        threshold = int(self.max_tokens * self.compress_threshold)
+        return tokens > threshold
+
+    async def compress(self, messages: list[dict]) -> list[dict]:
+        """压缩历史消息：优先用 LLM 智能摘要，失败时回退到简单截断。"""
+        if len(messages) <= 4:
+            return messages
+
+        system_msgs = [m for m in messages if m.get("role") == "system"]
+        non_system = [m for m in messages if m.get("role") != "system"]
+
+        keep_recent = 6
+        if len(non_system) <= keep_recent:
+            return messages
+
+        old_msgs = non_system[:-keep_recent]
+        recent_msgs = non_system[-keep_recent:]
+
+        # 尝试 LLM 智能摘要
+        summary_text = await self._llm_summarize(old_msgs)
+        if not summary_text:
+            # 回退：简单截断
+            summary_text = self._simple_summarize(old_msgs)
+
+        summary_msg = {"role": "user", "content": summary_text}
+        compressed = [*system_msgs, summary_msg, *recent_msgs]
+        log_info(f"上下文已压缩: {len(messages)} → {len(compressed)} 条消息")
+        return compressed
+
+    async def _llm_summarize(self, old_msgs: list[dict]) -> str | None:
+        """用 LLM 生成智能摘要。"""
+        if not self._llm:
+            return None
+
+        # 构造要摘要的文本
+        parts = []
+        for m in old_msgs:
+            role = m.get("role", "")
+            content = m.get("content", "")
+            if isinstance(content, str) and content.strip():
+                parts.append(f"[{role}] {content[:300]}")
+
+        if not parts:
+            return None
+
+        conversation_text = "\n".join(parts[-20:])  # 最近 20 条
+
+        summarize_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是一个对话摘要助手。请将以下对话历史压缩为简洁的摘要，"
+                    "保留关键发现、已执行的操作和重要结果。"
+                    "用中文输出，控制在 500 字以内。"
+                ),
+            },
+            {"role": "user", "content": f"请摘要以下对话：\n\n{conversation_text}"},
+        ]
+
+        try:
+            response = await self._llm.chat(
+                messages=summarize_messages,
+                tools=None,
+                temperature=0.0,
+            )
+            summary = response.choices[0].message.content
+            if summary and len(summary) > 20:
+                log_info("使用 LLM 智能摘要压缩上下文")
+                return f"[之前对话的摘要]\n{summary}"
+        except Exception as e:
+            log_warning(f"LLM 摘要失败，回退到简单截断: {e}")
+
+        return None
+
+    def _simple_summarize(self, old_msgs: list[dict]) -> str:
+        """简单截断摘要（回退方案）。"""
+        summary_parts = []
+        for m in old_msgs:
+            role = m.get("role", "")
+            content = m.get("content", "")
+            if isinstance(content, str) and content.strip():
+                summary_parts.append(f"[{role}] {content[:100]}")
+
+        return "以下是之前对话的摘要:\n" + "\n".join(summary_parts[-10:])

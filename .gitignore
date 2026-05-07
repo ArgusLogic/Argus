@@ -1,0 +1,41 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.env
+config.toml
+!config.example.toml
+output/
+*.db
+.venv/
+venv/
+
+# Rust / argus_native crate artifacts
+argus_native/target/
+argus_native/Cargo.lock
+*.so
+*.pyd
+
+# IDE / OS
+.idea/
+.vscode/
+.claude/
+.windsurf/
+.DS_Store
+Thumbs.db
+
+# Local data dirs（项目根可能存在的本地数据，运行时统一在 ~/.argus）
+sessions/
+skills/
+projects/
+
+# pytest / coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/

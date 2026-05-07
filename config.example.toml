@@ -1,0 +1,54 @@
+[general]
+# 默认模型，支持 litellm 格式：deepseek/deepseek-v4-pro, deepseek/deepseek-v4-flash, gpt-4o, claude-sonnet-4-20250514, ollama/qwen2.5
+# 注意: deepseek-chat 将于 2026-07-24 退役，建议使用 v4 系列
+default_model = "deepseek/deepseek-v4-flash"
+# 危险操作需要用户确认（safe 级工具始终自动执行）
+approval_mode = true
+# 显示中间推理过程
+verbose = true
+# 单次工具执行超时（秒）
+tool_timeout = 60
+# 工具执行失败时最大重试次数
+max_retries = 2
+# 日志同时写入文件 (output/logs/)
+log_to_file = true
+# 上下文窗口大小 (tokens)，超过此值的 80% 将触发压缩
+# V4 支持 1M，建议设为 200000 以平衡成本与记忆长度
+context_max_tokens = 200000
+
+[api_keys]
+# 至少填一个。支持 DeepSeek / OpenAI / Anthropic。
+deepseek = ""
+openai = ""
+anthropic = ""
+
+[browser]
+# headed = true 时会弹出浏览器窗口，方便调试
+headed = true
+# 浏览器超时时间（毫秒）
+timeout = 30000
+
+[security]
+# 允许扫描的域名白名单。为空则不限制（请确保只扫描授权目标）。
+# 示例: allowed_domains = ["example.com", "testsite.local"]
+allowed_domains = []
+# 截图保存目录
+screenshot_dir = "./output/screenshots"
+# 报告输出目录
+report_dir = "./output/reports"
+
+# ── 工具白名单/黑名单（可选，三种语义）──────────────────────────────────────
+# tool_allowlist: 仅允许此列表中的工具被调用（包括 confirm/block 级），其它一律拒绝
+#   留空 [] 表示不启用白名单（默认所有已注册工具可用）
+# tool_blocklist: 显式禁用某些工具（无论它们的风险等级）
+# require_approval_for: 即使 approval_mode=false，这些工具仍强制审批
+#
+# 优先级：blocklist > allowlist > require_approval > approval_mode
+#
+# 示例（只允许只读侦察工具）：
+# tool_allowlist = ["http_get", "dns_lookup", "whois_lookup", "header_analysis", "browser_navigate", "browser_get_text"]
+# tool_blocklist = ["browser_console_exec", "port_scan"]
+# require_approval_for = ["delegate_subagents", "subdomain_enum"]
+tool_allowlist = []
+tool_blocklist = []
+require_approval_for = []

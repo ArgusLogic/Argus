@@ -1,0 +1,39 @@
+# pre-commit hooks for Argus
+# 安装: pip install pre-commit && pre-commit install
+# 手动跑全部: pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.13.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-toml]
+        args: [--ignore-missing-imports]
+        exclude: ^(tests/|build/|output/)
+
+# 可选：本地 hook，提交前自动跑测试
+# - repo: local
+#   hooks:
+#     - id: pytest
+#       name: pytest
+#       entry: pytest -x -q
+#       language: system
+#       pass_filenames: false
+#       stages: [pre-push]
