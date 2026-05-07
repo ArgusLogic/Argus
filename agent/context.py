@@ -56,8 +56,17 @@ class ContextManager:
         if len(non_system) <= keep_recent:
             return messages
 
-        old_msgs = non_system[:-keep_recent]
-        recent_msgs = non_system[-keep_recent:]
+        # issue #3.5：边界不能切断 assistant.tool_calls -> tool 结果对，
+        # 否则 LLM API 会拒绝（"tool message must follow assistant w/ tool_calls"）。
+        # 策略：从默认切点起，若 recent 首条是 tool 角色，向前推进直到不是。
+        cut = max(0, len(non_system) - keep_recent)
+        while cut < len(non_system) and non_system[cut].get("role") == "tool":
+            cut += 1
+        # 若全是 tool（极端），就不压缩
+        if cut >= len(non_system):
+            return messages
+        old_msgs = non_system[:cut]
+        recent_msgs = non_system[cut:]
 
         # 尝试 LLM 智能摘要
         summary_text = await self._llm_summarize(old_msgs)

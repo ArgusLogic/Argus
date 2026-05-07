@@ -20,6 +20,7 @@ from utils.paths import SECAGENT_HOME
 from utils.sanitizer import sanitize_filename
 
 PROJECTS_DIR = os.path.join(SECAGENT_HOME, "projects")
+_MAX_PROJECT_BYTES = 5 * 1024 * 1024  # 5 MB（issue #15.10：防 LLM 写爆磁盘）
 
 
 def _project_path(name: str) -> str:
@@ -53,6 +54,8 @@ def _ensure_dir() -> None:
 )
 async def project_save(name: str, data: str) -> str:
     _ensure_dir()
+    if len(data.encode("utf-8")) > _MAX_PROJECT_BYTES:
+        return f"data 超出大小限制 ({_MAX_PROJECT_BYTES // 1024 // 1024} MB)"
     try:
         parsed = json.loads(data)
     except json.JSONDecodeError as e:
@@ -99,6 +102,12 @@ async def project_load(name: str) -> str:
     path = _project_path(name)
     if not os.path.exists(path):
         return f"项目不存在: {name}"
+    # issue #15.10：限制单项目读入上上文的最大字节数
+    try:
+        if os.path.getsize(path) > _MAX_PROJECT_BYTES:
+            return f"项目文件超大（>{_MAX_PROJECT_BYTES // 1024 // 1024} MB），拒绝读入"
+    except OSError:
+        pass
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)

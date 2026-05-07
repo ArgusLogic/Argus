@@ -280,6 +280,8 @@ class AgentEngine:
 
                 # 结果追加到消息
                 self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+                # issue #3.7：memory_manage 改写 MD 文件后，刷新 system 块
+                await self._refresh_memory_block_after_tool(func_name, result)
 
         # A1: 任务结束 → 增量 success_count
         self._track_skill_usage_after_run(final_text)
@@ -487,6 +489,8 @@ class AgentEngine:
 
                 # 结果追加到消息
                 self.messages.append({"role": "tool", "tool_call_id": tc_id, "content": result})
+                # issue #3.7：memory_manage 写入后刷新 system 块
+                await self._refresh_memory_block_after_tool(func_name, result)
 
                 # UI 显示工具完成
                 if ui:
@@ -521,6 +525,24 @@ class AgentEngine:
         # A2: 自动提炼新技能
         self._maybe_extract_skill_after_run(final_text)
         return final_text
+
+    async def _refresh_memory_block_after_tool(self, func_name: str, result: str) -> None:
+        """issue #3.7：memory_manage 写入后，刷新 system prompt 的 MEMORY 块。
+
+        会失效一次 prefix cache，但仅在 LLM 显式调 memory_manage 时触发，频率低。
+        失败/拒绝的调用（结果以"失败"/"拒绝"开头）跳过。
+        """
+        if func_name != "memory_manage":
+            return
+        if not isinstance(result, str) or result.startswith(("失败", "拒绝", "用户拒绝")):
+            return
+        if not self.messages or self.messages[0].get("role") != "system":
+            return
+        try:
+            new_prompt = await self._build_dynamic_prompt("")
+            self.messages[0]["content"] = new_prompt
+        except Exception as e:
+            log_warning(f"刷新 MEMORY 块失败: {e}")
 
     def _maybe_extract_skill_after_run(self, final_text: str) -> None:
         """A2: 任务结束后异步触发 LLM 自动提炼技能。

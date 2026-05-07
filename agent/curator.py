@@ -26,7 +26,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from agent.skills import SkillManager
-from utils.logger import log_error, log_info
+from utils.logger import console, log_error, log_info
 from utils.paths import CURATOR_REPORTS_DIR
 
 DEFAULT_SIMILARITY_THRESHOLD = 0.85
@@ -288,8 +288,8 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
         )
         path = write_report(report)
-        print(report.render_markdown())
-        print(f"\n报告已写入: {path}")
+        console.print(report.render_markdown())
+        console.print(f"\n报告已写入: {path}")
         return 0
 
     if args.cmd == "daemon":
