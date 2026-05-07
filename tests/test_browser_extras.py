@@ -242,10 +242,26 @@ class TestUpload:
         f = tmp_path / "data.bin"
         f.write_bytes(b"abc123")
         page = _mock_page()
-        with patch("tools.browser.get_page", new=AsyncMock(return_value=page)):
+        # tmp_path 在 pytest 创建时一般不在 safe_path 白名单中，需放行
+        with (
+            patch("tools.browser.get_page", new=AsyncMock(return_value=page)),
+            patch("utils.safe_path.is_path_allowed", return_value=True),
+        ):
             result = await browser_upload("#file", str(f))
         page.set_input_files.assert_awaited_with("#file", str(f))
         assert "已上传" in result and "6 字节" in result
+
+    async def test_upload_blocked_outside_allowlist(self, tmp_path: Path) -> None:
+        f = tmp_path / "data.bin"
+        f.write_bytes(b"abc123")
+        page = _mock_page()
+        with (
+            patch("tools.browser.get_page", new=AsyncMock(return_value=page)),
+            patch("utils.safe_path.is_path_allowed", return_value=False),
+        ):
+            result = await browser_upload("#file", str(f))
+        page.set_input_files.assert_not_awaited()
+        assert "拒绝" in result and "越界" in result
 
 
 # ─── B2 browser_keyboard ─────────────────────────────────────────────────

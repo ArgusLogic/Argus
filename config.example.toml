@@ -58,6 +58,19 @@ tool_allowlist = []
 tool_blocklist = []
 require_approval_for = []
 
+# ── 文件路径白名单（防 LLM 越权写入，issue #15.2）────────────────────────────
+# save_file / read_file / browser_upload 仅允许操作以下目录前缀。
+# 默认包含 ~/.argus/ 与当前工作目录。可在此处追加额外目录。
+# write_allowed_dirs = ["~/Desktop", "/tmp/argus_out"]
+# read_allowed_dirs  = ["~/Documents/targets"]
+write_allowed_dirs = []
+read_allowed_dirs = []
+
+# ── 全局 per-target 并发上限（issue #15.4）─────────────────────────────────
+# subdomain_enum / dir_bruteforce 等高强度工具，对同一目标的并发会自动汇总到此上限，
+# 防止多个子代理叠加击穿目标 WAF/rate-limit。
+per_target_concurrency = 20
+
 # ── 自演化 / Skills ────────────────────────────────────────────────────────
 [skills]
 # A1: 任务结束后扫描本轮工具调用，与已有技能 step 匹配（≥60% 重合）→ success_count+1

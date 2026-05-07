@@ -9,6 +9,7 @@ import nmap
 
 from agent.tool_registry import registry
 from tools.recon_wordlists import DIRECTORIES, SUBDOMAINS
+from utils.rate_limiter import target_slot
 from utils.sanitizer import sanitize_url, truncate
 
 
@@ -88,7 +89,8 @@ async def subdomain_enum(domain: str, concurrency: str = "20") -> str:
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async def check(sub: str) -> str | None:
-        async with semaphore:
+        # 全局 per-target 限流（#15.4）：防多个子代理叠加击同一目标
+        async with target_slot(domain), semaphore:
             return await _resolve_subdomain(sub, domain)
 
     tasks = [check(sub) for sub in SUBDOMAINS]
@@ -124,7 +126,7 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
     found = []
 
     async def check_path(client: httpx.AsyncClient, path: str) -> None:
-        async with semaphore:
+        async with target_slot(url), semaphore:
             target = f"{url}{path}"
             try:
                 resp = await client.get(target, follow_redirects=False)

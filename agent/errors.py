@@ -127,6 +127,22 @@ class APIAuthError(LLMError):
     recoverable: bool = False
 
 
+@dataclass
+class APITimeout(LLMError):
+    """LLM 请求超时。可重试。"""
+
+    code: str = "API_TIMEOUT"
+    recoverable: bool = True
+
+
+@dataclass
+class APINetworkError(LLMError):
+    """网络层错误（DNS / TLS / connection reset / EPIPE）。可重试。"""
+
+    code: str = "API_NETWORK"
+    recoverable: bool = True
+
+
 # ─── 配置 / 数据类 ─────────────────────────────────────────────────────
 
 
@@ -167,13 +183,35 @@ def classify_llm_error(exc: Exception) -> LLMError:
         return APIRateLimit(message=str(exc))
     if any(k in msg for k in ("unauthorized", "401", "invalid api key", "authentication")):
         return APIAuthError(message=str(exc))
+    if any(k in msg for k in ("timed out", "timeout", "deadline exceeded", "read timeout")):
+        return APITimeout(message=str(exc))
+    if any(
+        k in msg
+        for k in (
+            "connection refused",
+            "connection reset",
+            "connection aborted",
+            "econnreset",
+            "epipe",
+            "name or service not known",
+            "nodename nor servname",
+            "getaddrinfo failed",
+            "ssl",
+            "tls",
+            "network is unreachable",
+            "temporary failure in name resolution",
+        )
+    ):
+        return APINetworkError(message=str(exc))
     return LLMError(message=str(exc))
 
 
 __all__ = [
     "APIAuthError",
     "APIBalanceError",
+    "APINetworkError",
     "APIRateLimit",
+    "APITimeout",
     "ArgusError",
     "ConfigError",
     "LLMError",

@@ -21,6 +21,7 @@ from utils.logger import file_logger, log_warning
 
 # 启发式阈值
 MIN_TOOL_CALLS = 3  # 少于这么多次调用直接跳过
+TOTAL_TIMEOUT_S = 60.0  # 整个提炼流程的硬上限（#15.9：防 fire-and-forget task 悬挂）
 
 # LLM 提炼提示词
 _EXTRACT_SYSTEM_PROMPT = """你是 Argus Agent 的"技能提炼助手"。
@@ -118,7 +119,29 @@ async def extract_skill_async(
     """主入口：自动提炼技能；返回新增/更新的技能名（或 None 表示跳过）。
 
     fire-and-forget：本函数捕获所有异常后写日志，不向调用方抛出。
+    外层 `asyncio.wait_for` 兜底超时（#15.9），避免 LLM 底层卡住悬挂 task。
     """
+    import asyncio
+
+    try:
+        return await asyncio.wait_for(
+            _extract_skill_inner(llm, skills, messages, final_text),
+            timeout=TOTAL_TIMEOUT_S,
+        )
+    except TimeoutError:
+        log_warning(f"skill 自动提炼超时 (>{TOTAL_TIMEOUT_S}s)")
+        return None
+    except Exception as e:
+        log_warning(f"skill 自动提炼失败: {e}")
+        return None
+
+
+async def _extract_skill_inner(
+    llm: LLMClient,
+    skills: SkillManager,
+    messages: list[dict],
+    final_text: str,
+) -> str | None:
     try:
         if not is_extraction_worthwhile(messages, final_text):
             return None

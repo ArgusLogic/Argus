@@ -1,5 +1,6 @@
 """持久记忆系统：跨会话知识积累，SQLite + FTS5 全文检索。"""
 
+import asyncio
 import contextlib
 import os
 from datetime import datetime
@@ -8,6 +9,9 @@ import aiosqlite
 
 from utils.logger import log_info, log_warning
 from utils.paths import DB_PATH, SESSIONS_DIR
+
+# issue #15.3：多协程串行化写入，避免并发写损坏数据库。
+_write_lock = asyncio.Lock()
 
 
 def _ensure_dir() -> None:
@@ -21,9 +25,13 @@ class MemoryStore:
         self._initialized = False
 
     async def _get_db(self) -> aiosqlite.Connection:
-        """获取数据库连接并确保记忆表已创建。"""
+        """获取数据库连接并确保记忆表已创建。启用 WAL 提高并发安全 (#15.3)。"""
         _ensure_dir()
         db = await aiosqlite.connect(DB_PATH)
+        # WAL: 读写并发不互斥，减少锁冲突
+        with contextlib.suppress(Exception):
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA synchronous=NORMAL")
         if not self._initialized:
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS memories (
@@ -62,19 +70,20 @@ class MemoryStore:
             content: 记忆内容
             source: 来源（如会话名或目标域名）
         """
-        db = await self._get_db()
-        try:
-            now = datetime.now().isoformat()
-            cursor = await db.execute(
-                "INSERT INTO memories (category, content, source, created_at) VALUES (?, ?, ?, ?)",
-                (category, content, source, now),
-            )
-            await db.commit()
-            memory_id = cursor.lastrowid
-            log_info(f"记忆已保存 [#{memory_id} {category}]: {content[:60]}")
-            return memory_id or 0
-        finally:
-            await db.close()
+        async with _write_lock:
+            db = await self._get_db()
+            try:
+                now = datetime.now().isoformat()
+                cursor = await db.execute(
+                    "INSERT INTO memories (category, content, source, created_at) VALUES (?, ?, ?, ?)",
+                    (category, content, source, now),
+                )
+                await db.commit()
+                memory_id = cursor.lastrowid
+                log_info(f"记忆已保存 [#{memory_id} {category}]: {content[:60]}")
+                return memory_id or 0
+            finally:
+                await db.close()
 
     async def search(self, query: str, limit: int = 10) -> list[dict]:
         """FTS5 全文检索记忆。"""
@@ -154,31 +163,33 @@ class MemoryStore:
 
     async def delete(self, memory_id: int) -> bool:
         """删除指定记忆。"""
-        db = await self._get_db()
-        try:
-            cursor = await db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
-            await db.commit()
-            deleted = cursor.rowcount > 0
-            if deleted:
-                log_info(f"记忆已删除: #{memory_id}")
-            return deleted
-        finally:
-            await db.close()
+        async with _write_lock:
+            db = await self._get_db()
+            try:
+                cursor = await db.execute("DELETE FROM memories WHERE id = ?", (memory_id,))
+                await db.commit()
+                deleted = cursor.rowcount > 0
+                if deleted:
+                    log_info(f"记忆已删除: #{memory_id}")
+                return deleted
+            finally:
+                await db.close()
 
     async def clear(self) -> int:
         """清空所有记忆，返回删除数量。"""
-        db = await self._get_db()
-        try:
-            cursor = await db.execute("SELECT COUNT(*) FROM memories")
-            row = await cursor.fetchone()
-            count = row[0] if row else 0
-            await db.execute("DELETE FROM memories")
-            await db.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
-            await db.commit()
-            log_info(f"已清空 {count} 条记忆")
-            return count
-        finally:
-            await db.close()
+        async with _write_lock:
+            db = await self._get_db()
+            try:
+                cursor = await db.execute("SELECT COUNT(*) FROM memories")
+                row = await cursor.fetchone()
+                count = row[0] if row else 0
+                await db.execute("DELETE FROM memories")
+                await db.execute("INSERT INTO memories_fts(memories_fts) VALUES('rebuild')")
+                await db.commit()
+                log_info(f"已清空 {count} 条记忆")
+                return count
+            finally:
+                await db.close()
 
     async def count(self) -> int:
         """返回记忆总数。"""
@@ -228,8 +239,8 @@ class MemoryStore:
             # 只保留中文、字母、数字组成的 token
             safe_tokens = [t for t in tokens if re.match(r"^[\w\u4e00-\u9fff]+$", t)]
             if safe_tokens:
-                # FTS5 需要用双引号包裹每个 token
-                fts_query = " OR ".join(f'"{t}"' for t in safe_tokens[:5])
+                # FTS5 需要用双引号包裹每个 token；内部 " 需要双化转义 (#15.5)
+                fts_query = " OR ".join('"' + t.replace('"', '""') + '"' for t in safe_tokens[:5])
                 with contextlib.suppress(Exception):
                     results = await self.search(fts_query, limit=limit)
 

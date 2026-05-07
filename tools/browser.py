@@ -631,9 +631,14 @@ async def browser_frame(selector: str = "") -> str:
     },
 )
 async def browser_upload(selector: str, file_path: str) -> str:
+    from utils.safe_path import is_path_allowed
+
     page = await get_page()
     if not os.path.isfile(file_path):
         return f"文件不存在: {file_path}"
+    # issue #15.2：防 LLM 被诱导读取任意敏感本地文件再上传
+    if not is_path_allowed(file_path, mode="read"):
+        return f"上传被拒绝: 路径越界 {file_path!r}（不在 read_allowed_dirs 内）"
     try:
         await page.set_input_files(selector, file_path)
         size = os.path.getsize(file_path)

@@ -166,9 +166,9 @@ class TestExtractSkillAsync:
         )
         mock_resp = MagicMock()
         mock_resp.choices = [MagicMock()]
-        mock_resp.choices[0].message.content = (
-            '{"worth_saving": true, "name": "Basic Recon Flow", "description": "重复"}'
-        )
+        mock_resp.choices[
+            0
+        ].message.content = '{"worth_saving": true, "name": "Basic Recon Flow", "description": "重复"}'
         mock_llm.chat.return_value = mock_resp
 
         name = await extract_skill_async(mock_llm, skill_manager, self._good_messages(), "done")
@@ -193,5 +193,21 @@ class TestExtractSkillAsync:
     async def test_handles_llm_exception(self, mock_llm: Any, skill_manager: SkillManager) -> None:
         mock_llm.chat.side_effect = RuntimeError("API down")
         # 静默吞掉
+        result = await extract_skill_async(mock_llm, skill_manager, self._good_messages(), "done")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_outer_timeout_swallowed(
+        self, mock_llm: Any, skill_manager: SkillManager, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """#15.9: 外层 wait_for 兜底，LLM 卡死也不会悬挂。"""
+        import asyncio
+
+        monkeypatch.setattr("agent.skill_extractor.TOTAL_TIMEOUT_S", 0.05)
+
+        async def _hang(**_: Any) -> Any:
+            await asyncio.sleep(2.0)
+
+        mock_llm.chat.side_effect = _hang
         result = await extract_skill_async(mock_llm, skill_manager, self._good_messages(), "done")
         assert result is None

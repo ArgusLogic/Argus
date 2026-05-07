@@ -33,7 +33,15 @@ def _resolve_path(filepath: str) -> str:
     },
 )
 async def save_file(filename: str, content: str) -> str:
+    from utils.safe_path import require_safe_path
+
     filepath = _resolve_path(filename)
+
+    # issue #15.2：防 LLM 被诱导写到任意敏感路径
+    try:
+        filepath = require_safe_path(filepath, mode="write")
+    except PermissionError as e:
+        return f"保存被拒绝: {e}"
 
     # 确保目录存在
     dirpath = os.path.dirname(filepath)
@@ -43,8 +51,7 @@ async def save_file(filename: str, content: str) -> str:
     try:
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        abs_path = os.path.abspath(filepath)
-        return f"文件已保存: {abs_path} ({len(content)} 字符)"
+        return f"文件已保存: {filepath} ({len(content)} 字符)"
     except Exception as e:
         return f"保存失败: {e}"
 
@@ -57,10 +64,14 @@ async def save_file(filename: str, content: str) -> str:
     },
 )
 async def read_file(filename: str) -> str:
+    from utils.safe_path import is_path_allowed
+
     filepath = os.path.expanduser(filename)
 
-    # 如果是绝对路径，直接读取
+    # 如果是绝对路径，直接读取（先做白名单校验，issue #15.2）
     if os.path.isabs(filepath) and os.path.isfile(filepath):
+        if not is_path_allowed(filepath, mode="read"):
+            return f"读取被拒绝: 路径越界 {filepath!r}（不在 read_allowed_dirs 内）"
         try:
             with open(filepath, encoding="utf-8") as f:
                 content = f.read()
