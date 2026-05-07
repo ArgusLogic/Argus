@@ -28,6 +28,19 @@ from utils.logger import log_warning
 from utils.sanitizer import sanitize_url, truncate
 
 DEFAULT_TIMEOUT_MS = 30000
+
+
+def _is_headless_from_config() -> bool:
+    """从 config.toml 读取浏览器 headed 设置。找不到配置时默认 headless。"""
+    try:
+        from utils.paths import CONFIG_PATH
+        if CONFIG_PATH.exists():
+            import toml
+            cfg = toml.load(str(CONFIG_PATH))
+            return not cfg.get("browser", {}).get("headed", False)
+    except Exception:
+        pass
+    return True  # 安全默认：服务器环境默认 headless
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -68,8 +81,10 @@ class BrowserPool:
 
         return True
 
-    async def get_page(self, headed: bool = True, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
+    async def get_page(self, headed: bool | None = None, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
         """获取健康的浏览器页面，必要时重建。"""
+        if headed is None:
+            headed = not _is_headless_from_config()
         async with self._lock:
             await self.health_check()
 
@@ -145,8 +160,10 @@ _pool = BrowserPool()
 # ─── 向后兼容的薄包装 ────────────────────────────────────────────────────
 
 
-async def get_page(headed: bool = True, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
-    """（兼容旧 API）获取或创建浏览器页面，单例模式 + 健康检查。"""
+async def get_page(headed: bool | None = None, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
+    """（兼容旧 API）获取或创建浏览器页面，单例模式 + 健康检查。
+    默认 headless 由 config.toml 的 browser.headed 决定。
+    """
     return await _pool.get_page(headed=headed, timeout=timeout)
 
 
