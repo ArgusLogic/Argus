@@ -1,6 +1,7 @@
 """Argus - 网络安全信息收集 Agent CLI 入口。"""
 
 import asyncio
+import contextlib
 import os
 import sys
 from typing import Any
@@ -392,6 +393,43 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
                 log_info(f"已 unpin: {parts[2]}")
             else:
                 log_warning(f"技能不存在: {parts[2]}")
+        elif parts[1] == "export":
+            # C3: /skills export <name> [dest_dir]
+            if len(parts) < 3:
+                log_warning("用法: /skills export <name> [dest_dir]")
+            else:
+                from agent.skill_interop import export_skill
+
+                skill = engine.skills.get_skill(parts[2])
+                if not skill:
+                    log_warning(f"技能不存在: {parts[2]}")
+                else:
+                    dest = (
+                        parts[3]
+                        if len(parts) > 3
+                        else os.path.join(os.path.expanduser("~"), ".argus", "skills_export")
+                    )
+                    try:
+                        out_path = export_skill(skill, dest)
+                        log_info(f"📦 已导出 agentskills 格式 → {out_path}")
+                    except Exception as e:
+                        log_error(f"导出失败: {e}")
+        elif parts[1] == "import":
+            # C3: /skills import <path>（可指向 SKILL.md 或包含它的目录）
+            if len(parts) < 3:
+                log_warning("用法: /skills import <path>")
+            else:
+                from agent.skill_interop import import_skill
+
+                try:
+                    imported = import_skill(parts[2])
+                    if engine.skills.get_skill(imported["name"]):
+                        log_warning(f"技能已存在，跳过覆盖: {imported['name']}（删后重导）")
+                    else:
+                        engine.skills.save_skill(imported)
+                        log_info(f"📥 已导入 agentskills 技能: {imported['name']}")
+                except Exception as e:
+                    log_error(f"导入失败: {e}")
 
     elif command == "/curator":
         # B1: /curator run [--dry-run] — 立即执行一次 curator
@@ -402,6 +440,26 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
         path = write_report(report)
         console.print(report.render_markdown())
         log_info(f"curator 完成 → {path}")
+
+    elif command == "/insights":
+        # C1: /insights [--days N] — 跨会话趋势报表
+        from agent.insights import collect_insights, render_table
+
+        days = 7
+        for i, p in enumerate(parts):
+            if p == "--days" and i + 1 < len(parts):
+                with contextlib.suppress(ValueError):
+                    days = int(parts[i + 1])
+        ins_report = await collect_insights(days=days)
+        console.print(
+            f"\n📈 Sessions: {ins_report.session_count} · "
+            f"Messages: {ins_report.message_count} · "
+            f"Tool calls: {ins_report.tool_call_count}\n"
+        )
+        if ins_report.tool_call_count:
+            console.print(render_table(ins_report))
+        else:
+            log_info(f"最近 {days} 天没有已保存的会话工具调用")
 
     elif command == "/clear":
         from agent.prompts import SYSTEM_PROMPT
@@ -456,6 +514,7 @@ async def main() -> None:
     auto_extract_skills = skills_cfg.get("auto_extract", False)
     memory_cfg = config.get("memory", {})
     track_lessons = memory_cfg.get("track_lessons", True)
+    track_failure_replays = memory_cfg.get("track_failure_replays", False)
 
     # 启用文件日志
     if log_to_file:
@@ -480,6 +539,7 @@ async def main() -> None:
         track_skill_usage=track_skill_usage,
         track_lessons=track_lessons,
         auto_extract_skills=auto_extract_skills,
+        track_failure_replays=track_failure_replays,
     )
 
     print_banner(model)

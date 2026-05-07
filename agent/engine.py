@@ -99,6 +99,7 @@ class AgentEngine:
         track_skill_usage: bool = True,
         track_lessons: bool = True,
         auto_extract_skills: bool = False,
+        track_failure_replays: bool = False,
     ):
         self.llm = llm
         self.registry = registry
@@ -119,6 +120,8 @@ class AgentEngine:
         self.track_lessons = track_lessons
         # A2: 自演化 — 自动提炼技能（每次任务结束后判断；要烧 token，默认关）
         self.auto_extract_skills = auto_extract_skills
+        # C2: 失败请求结构化日志（jsonl）
+        self.track_failure_replays = track_failure_replays
         self.context = ContextManager(max_tokens=context_max_tokens)
         self.context.set_llm(llm)
         self.memory = MemoryStore()  # 保留：作为 session_search FTS5 后端
@@ -282,6 +285,8 @@ class AgentEngine:
         self._track_skill_usage_after_run(final_text)
         # A3: 失败学习 — 把本轮检测到的失败写入 LESSONS.md
         self._track_lessons_after_run()
+        # C2: 结构化失败记录写入 jsonl（默认关）
+        self._track_failure_replays_after_run()
         # A2: 自动提炼新技能（fire-and-forget，可能调 LLM）
         self._maybe_extract_skill_after_run(final_text)
         return final_text
@@ -511,6 +516,8 @@ class AgentEngine:
         self._track_skill_usage_after_run(final_text)
         # A3: 失败学习
         self._track_lessons_after_run()
+        # C2: 结构化失败记录
+        self._track_failure_replays_after_run()
         # A2: 自动提炼新技能
         self._maybe_extract_skill_after_run(final_text)
         return final_text
@@ -541,6 +548,22 @@ class AgentEngine:
             task.add_done_callback(self._bg_tasks.discard)
         except Exception as e:
             log_warning(f"auto skill extract 启动失败: {e}")
+
+    def _track_failure_replays_after_run(self) -> int:
+        """C2: 把本轮失败请求写入结构化 jsonl（独立于 A3 lessons）。
+
+        被 track_failure_replays 开关控制（默认关）。
+        """
+        if not self.track_failure_replays:
+            return 0
+        try:
+            from agent.failure_log import extract_and_log_failures
+
+            turn_messages = self.messages[self._turn_start_idx :]
+            return extract_and_log_failures(turn_messages)
+        except Exception as e:
+            log_warning(f"failure_replay 写入失败: {e}")
+            return 0
 
     def _track_lessons_after_run(self) -> list[str]:
         """A3: 启发式扫描本轮 tool 消息，把识别到的失败模式写入 LESSONS.md。

@@ -82,3 +82,8 @@ update_user_profile = false
 # 自动写入 LESSONS.md，下次会话首轮注入 system prompt 形成"避坑库"
 # 零 LLM 调用；默认开启
 track_lessons = true
+
+# C2: 把失败的 tool 调用结构化追加到 ~/.argus/failure_replays.jsonl
+# 与 lessons（人类可读避坑文本）互补：本日志可被未来工具/insights 程序化检索
+# 默认关闭
+track_failure_replays = false

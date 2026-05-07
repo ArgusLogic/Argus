@@ -3,7 +3,7 @@
 [![CI](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml/badge.svg)](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-267%20passing-green.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-383%20passing-green.svg)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > 基于 LLM 的 CLI 自主侦察 Agent。一句自然语言任务，**44 个内置工具**全程自动调度——浏览器自动化、DevTools 抓包、JS 端点挖掘、SSE 流式捕获、子域名/目录枚举、端口扫描、请求重放，最终产出结构化 Markdown 报告。
@@ -16,8 +16,9 @@
 - **请求重放** — 从 DevTools 网络日志取任意请求，改 header/body 后重发
 - **项目状态存储** — 结构化 JSON 持久化目标信息，跨会话沿用
 - **子代理并行** — `delegate_subagents` 同时打多个目标，主代理只看汇总
+- **自演化闭环** — success_count 自动增量、LESSONS 避坑库、自动提炼技能、skill curator、用户画像、跨会话 insights、agentskills.io 互操作
 - **Rust 加速骨架** — `argus_native` crate via PyO3，Python fallback 透明
-- **完整工程化** — ruff/mypy/pytest 全绿，267 测试，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
+- **完整工程化** — ruff/mypy/pytest 全绿，**383 测试**，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
 
 ## 快速开始
 
@@ -163,9 +164,48 @@ pip install target/wheels/*.whl
 | `/effort off\|high\|max` | 切换推理深度 |
 | `/yolo` ⇄ `/agent` | YOLO（无审批）⇄ Agent（高风险审批） |
 | `/session save \| load \| list \| delete` | 会话持久化 |
-| `/skills list \| show \| delete` | 技能管理 |
+| `/skills list \| show \| delete \| pin \| unpin \| export \| import` | 技能管理 + agentskills.io 互操作 |
+| `/curator [--dry-run]` | 立即跑一次 skill curator（合并/归档） |
+| `/insights [--days N]` | 跨会话趋势报表 |
 | `/clear` | 清空上下文 |
 | `/exit` | 退出 |
+
+## 自演化（Self-Evolution）
+
+Argus 在每轮任务结束时**自动**沉淀经验，不需要主 LLM 主动管。所有特性都可独立开关：
+
+| 项 | 模块 | LLM 成本 | 默认 | 配置项 |
+|---|---|:-:|:-:|---|
+| **A1**: success_count 自动增量 | `agent/skills.py` | 零 | ✅ | `[skills] track_usage` |
+| **A2**: 自动提炼新技能（LLM judge） | `agent/skill_extractor.py` | 每轮 1 次轻量 prompt | ❌ | `[skills] auto_extract` |
+| **A3**: LESSONS 失败避坑库 | `agent/lessons.py` | 零（启发式正则） | ✅ | `[memory] track_lessons` |
+| **B1**: skill curator（合并/归档） | `agent/curator.py` | 零（SequenceMatcher） | ❌（独立 daemon） | `[skills.curator] enabled` |
+| **B2**: 用户画像归纳 | `agent/user_profile.py` | curator 周期 1 次 | ❌ | `[skills.curator] update_user_profile` |
+| **C1**: `/insights` 跨会话报表 | `agent/insights.py` | 零（SQLite 聚合） | ✅（按需调用） | — |
+| **C2**: 失败请求结构化日志 | `agent/failure_log.py` | 零 | ❌ | `[memory] track_failure_replays` |
+| **C3**: agentskills.io 互操作 | `agent/skill_interop.py` | 零 | ✅ | — |
+
+### 启用 curator 后台进程
+
+```bash
+# 单次跑一遍（建议先用 --dry-run 看报告）
+python -m agent.curator run --dry-run
+
+# 后台常驻定时跑（cron 风格）
+python -m agent.curator daemon --interval 24h
+```
+
+报告写入 `~/.argus/curator_reports/YYYYMMDD_HHMMSS.md`。
+
+### 与 agentskills.io 互操作
+
+```bash
+# 在 CLI 里：
+/skills export recon_pipeline           # 导出到 ~/.argus/skills_export/
+/skills import path/to/SKILL.md         # 或导入一个外部技能包
+```
+
+兼容 [agentskills.io 规范](https://agentskills.io/specification)：YAML frontmatter + Markdown body，可与 Hermes/Claude Code/Cursor 共享技能。
 
 ## 安全机制
 
@@ -290,9 +330,10 @@ docker run -d -p 3000:3000 bkimminich/juice-shop
 ## 路线图
 
 - [x] v9：浏览器原语 + SSE 捕获 + 请求重放 + 项目存储 + 子代理 + Rust 加速骨架
-- [ ] v10：MCP 协议接入（让 Argus 既能消费也能暴露工具）
-- [ ] v11：分布式扫描后端（多浏览器 worker + 任务队列）
-- [ ] v12：插件市场（社区贡献工具）
+- [x] v10：自演化闭环（A1+A2+A3+B1+B2+C1+C2+C3，对齐 Hermes 自演化基线 + agentskills.io 互操作）
+- [ ] v11：MCP 协议接入（让 Argus 既能消费也能暴露工具）
+- [ ] v12：分布式扫描后端（多浏览器 worker + 任务队列）
+- [ ] v13：插件市场（社区贡献工具）
 
 ## 安全声明
 
