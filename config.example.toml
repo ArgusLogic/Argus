@@ -52,3 +52,21 @@ report_dir = "./output/reports"
 tool_allowlist = []
 tool_blocklist = []
 require_approval_for = []
+
+# ── 自演化 / Skills ────────────────────────────────────────────────────────
+[skills]
+# A1: 任务结束后扫描本轮工具调用，与已有技能 step 匹配（≥60% 重合）→ success_count+1
+# 零 LLM 调用，零额外成本；默认开启
+track_usage = true
+
+# A2: 任务结束后用 LLM 自动判断"值不值得提炼新技能"，命中则写 skills/
+# ⚠️ 每次任务结束都会触发一次 LLM 调用（轻量 prompt，~500 tokens）
+# 默认关闭；建议在确认效果后再开启
+auto_extract = false
+
+# ── 自演化 / 记忆（A3: 失败学习自动入库）────────────────────────────────────
+[memory]
+# 启发式扫描本轮 tool 结果，识别失败模式（403/429/WAF/超时/captcha 等）
+# 自动写入 LESSONS.md，下次会话首轮注入 system prompt 形成"避坑库"
+# 零 LLM 调用；默认开启
+track_lessons = true

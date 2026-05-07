@@ -96,6 +96,9 @@ class AgentEngine:
         tool_allowlist: list[str] | None = None,
         tool_blocklist: list[str] | None = None,
         require_approval_for: list[str] | None = None,
+        track_skill_usage: bool = True,
+        track_lessons: bool = True,
+        auto_extract_skills: bool = False,
     ):
         self.llm = llm
         self.registry = registry
@@ -109,6 +112,13 @@ class AgentEngine:
         self.tool_allowlist: set[str] = set(tool_allowlist or [])
         self.tool_blocklist: set[str] = set(tool_blocklist or [])
         self.require_approval_for: set[str] = set(require_approval_for or [])
+        # A1: 自演化 — 跟踪本轮 user 输入起的工具调用，结束后增量 success_count
+        self.track_skill_usage = track_skill_usage
+        self._turn_start_idx = 0
+        # A3: 自演化 — 失败学习（启发式抽取，零 LLM 成本）
+        self.track_lessons = track_lessons
+        # A2: 自演化 — 自动提炼技能（每次任务结束后判断；要烧 token，默认关）
+        self.auto_extract_skills = auto_extract_skills
         self.context = ContextManager(max_tokens=context_max_tokens)
         self.context.set_llm(llm)
         self.memory = MemoryStore()  # 保留：作为 session_search FTS5 后端
@@ -142,6 +152,10 @@ class AgentEngine:
         # MEMORY.md / USER.md 块（冻结注入）
         memory_block = self.memory_md.render_block("memory")
         user_block = self.memory_md.render_block("user")
+        # A3: LESSONS（避坑库），仅在非空时注入
+        lessons_block = ""
+        if self.memory_md.list_entries("lessons"):
+            lessons_block = self.memory_md.render_block("lessons")
         # 获取技能摘要
         skills_text = self.skills.format_for_prompt(limit=5)
         # 加载项目上下文文件
@@ -152,6 +166,7 @@ class AgentEngine:
             user_block=user_block,
             skills_text=skills_text,
             context_file=context_file,
+            lessons_block=lessons_block,
         )
 
     async def run(self, user_input: str) -> str:
@@ -165,6 +180,8 @@ class AgentEngine:
                 self.messages.insert(0, {"role": "system", "content": dynamic_prompt})
             self._memory_injected = True
 
+        # A1: 标记本轮起点，便于结束后做 skill usage tracking
+        self._turn_start_idx = len(self.messages)
         self.messages.append({"role": "user", "content": user_input})
 
         tools_schema = self.registry.get_tools_schema()
@@ -261,6 +278,12 @@ class AgentEngine:
                 # 结果追加到消息
                 self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
+        # A1: 任务结束 → 增量 success_count
+        self._track_skill_usage_after_run(final_text)
+        # A3: 失败学习 — 把本轮检测到的失败写入 LESSONS.md
+        self._track_lessons_after_run()
+        # A2: 自动提炼新技能（fire-and-forget，可能调 LLM）
+        self._maybe_extract_skill_after_run(final_text)
         return final_text
 
     async def run_stream(self, user_input: str, ui=None) -> str:
@@ -280,6 +303,8 @@ class AgentEngine:
                 self.messages.insert(0, {"role": "system", "content": dynamic_prompt})
             self._memory_injected = True
 
+        # A1: 标记本轮起点
+        self._turn_start_idx = len(self.messages)
         self.messages.append({"role": "user", "content": user_input})
 
         tools_schema = self.registry.get_tools_schema()
@@ -482,7 +507,96 @@ class AgentEngine:
                 cache_miss=total_cache_miss,
             )
 
+        # A1: 任务结束 → 增量 success_count
+        self._track_skill_usage_after_run(final_text)
+        # A3: 失败学习
+        self._track_lessons_after_run()
+        # A2: 自动提炼新技能
+        self._maybe_extract_skill_after_run(final_text)
         return final_text
+
+    def _maybe_extract_skill_after_run(self, final_text: str) -> None:
+        """A2: 任务结束后异步触发 LLM 自动提炼技能。
+
+        fire-and-forget：不等待结果，不阻塞用户回流。
+        被 auto_extract_skills 开关控制，默认关闭（要烧 token）。
+        """
+        if not self.auto_extract_skills:
+            return
+        try:
+            from agent.skill_extractor import extract_skill_async
+
+            turn_messages = self.messages[self._turn_start_idx :]
+            task = asyncio.create_task(
+                extract_skill_async(
+                    llm=self.llm,
+                    skills=self.skills,
+                    messages=turn_messages,
+                    final_text=final_text,
+                )
+            )
+            # 持有引用避免被 GC 提前回收（RUF006）
+            self._bg_tasks: set = getattr(self, "_bg_tasks", set())
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
+        except Exception as e:
+            log_warning(f"auto skill extract 启动失败: {e}")
+
+    def _track_lessons_after_run(self) -> list[str]:
+        """A3: 启发式扫描本轮 tool 消息，把识别到的失败模式写入 LESSONS.md。
+
+        零 LLM 调用。对同一 (tool, target, label) 三元组在本轮内只产出 1 条。
+        被 track_lessons 开关控制，默认开启。
+
+        返回新增的 lesson 文本列表（便于测试/日志）。
+        """
+        if not self.track_lessons:
+            return []
+        try:
+            from agent.lessons import extract_lessons
+
+            turn_messages = self.messages[self._turn_start_idx :]
+            lessons = extract_lessons(turn_messages)
+            saved: list[str] = []
+            for lesson in lessons:
+                res = self.memory_md.append_lesson(lesson)
+                if res.get("ok"):
+                    saved.append(lesson)
+            if saved:
+                from utils.logger import file_logger
+
+                file_logger.write("INFO", f"自演化 A3: 新增 {len(saved)} 条 lesson")
+            return saved
+        except Exception as e:
+            log_warning(f"lesson tracking 失败: {e}")
+            return []
+
+    def _track_skill_usage_after_run(self, final_text: str) -> list[str]:
+        """A1: 任务结束后，扫描本轮 user 起的工具调用序列，与已有技能匹配。
+
+        命中（≥60% 步骤工具重合）则 increment_success。
+        被 track_skill_usage 开关控制，默认开启；零 LLM 调用，纯本地匹配。
+
+        返回匹配并已增量的技能名列表（便于测试/日志）。
+        """
+        if not self.track_skill_usage or not final_text.strip():
+            return []
+        try:
+            turn_messages = self.messages[self._turn_start_idx :]
+            executed = self.skills.extract_tool_names(turn_messages)
+            if len(executed) < 2:
+                return []
+            matched = self.skills.match_used_skills(executed, min_overlap=0.6)
+            for name in matched:
+                self.skills.increment_success(name)
+            if matched:
+                from utils.logger import file_logger
+
+                file_logger.write("INFO", f"自演化 A1: 复用技能 +1 → {', '.join(matched)}")
+            return matched
+        except Exception as e:
+            log_warning(f"skill usage tracking 失败: {e}")
+            return []
 
     async def _call_llm_with_retry(
         self, messages: list[dict], tools: list[dict] | None, max_attempts: int = 3

@@ -22,19 +22,21 @@ import os
 from typing import Literal
 
 from utils.logger import log_info, log_warning
-from utils.paths import MEMORIES_DIR, MEMORY_MD_PATH, USER_MD_PATH
+from utils.paths import LESSONS_MD_PATH, MEMORIES_DIR, MEMORY_MD_PATH, USER_MD_PATH
 
 SEP = "§"
-TARGET = Literal["memory", "user"]
+TARGET = Literal["memory", "user", "lessons"]
 
 # 字符容量上限
 CAP_MEMORY = 2200
 CAP_USER = 1500
+CAP_LESSONS = 1800  # A3: 失败学习库
 
 # 文件头部标题
 _HEADERS = {
     "memory": "# Argus Memory",
     "user": "# User Profile",
+    "lessons": "# Lessons Learned",
 }
 
 
@@ -52,11 +54,19 @@ class MemoryMD:
             return MEMORY_MD_PATH
         if target == "user":
             return USER_MD_PATH
-        raise ValueError(f"未知 target: {target}（可用: memory / user）")
+        if target == "lessons":
+            return LESSONS_MD_PATH
+        raise ValueError(f"未知 target: {target}（可用: memory / user / lessons）")
 
     @staticmethod
     def _cap(target: str) -> int:
-        return CAP_MEMORY if target == "memory" else CAP_USER
+        if target == "memory":
+            return CAP_MEMORY
+        if target == "user":
+            return CAP_USER
+        if target == "lessons":
+            return CAP_LESSONS
+        return CAP_MEMORY
 
     # ─── 读取 / 解析 ─────────────────────────────────────────────────
 
@@ -205,7 +215,12 @@ class MemoryMD:
     def render_block(self, target: str) -> str:
         """生成带容量条的注入块。"""
         s = self.stats(target)
-        label = {"memory": "MEMORY (你的工作笔记)", "user": "USER (用户画像)"}[target]
+        labels = {
+            "memory": "MEMORY (你的工作笔记)",
+            "user": "USER (用户画像)",
+            "lessons": "LESSONS (避坑库 — 历史失败教训)",
+        }
+        label = labels.get(target, target.upper())
         bar = "═" * 46
         header = f"{bar}\n{label} [{s['pct']}% — {s['used']}/{s['cap']} chars]\n{bar}"
         entries = self.list_entries(target)
@@ -217,3 +232,29 @@ class MemoryMD:
     def render_full(self) -> str:
         """同时渲染 memory + user 两块。"""
         return self.render_block("memory") + "\n\n" + self.render_block("user")
+
+    # ─── A3: 失败学习自动入库 ────────────────────────────────────────
+
+    def append_lesson(self, content: str, max_entries: int = 30) -> dict:
+        """追加一条 lesson；超过 max_entries 时按 FIFO 淘汰最旧条目。
+
+        与 add() 区别：lessons 用 FIFO 淘汰而非拒绝，保证总能写入。
+        精确去重：相同内容不重复追加。
+        """
+        content = (content or "").strip()
+        if not content:
+            return {"ok": False, "msg": "content 不能为空"}
+
+        entries = self.list_entries("lessons")
+        if content in entries:
+            return {"ok": False, "msg": "duplicate"}
+
+        entries.append(content)
+
+        # 容量：按 max_entries + 字符容量双重约束
+        cap = self._cap("lessons")
+        while entries and (len(entries) > max_entries or sum(len(e) for e in entries) > cap):
+            entries.pop(0)
+
+        self._write_entries("lessons", entries)
+        return {"ok": True, "msg": "appended", "stats": self.stats("lessons")}

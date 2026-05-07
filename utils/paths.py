@@ -41,6 +41,7 @@ SKILLS_DIR = os.path.join(SECAGENT_HOME, "skills")
 MEMORIES_DIR = os.path.join(SECAGENT_HOME, "memories")
 MEMORY_MD_PATH = os.path.join(MEMORIES_DIR, "MEMORY.md")
 USER_MD_PATH = os.path.join(MEMORIES_DIR, "USER.md")
+LESSONS_MD_PATH = os.path.join(MEMORIES_DIR, "LESSONS.md")
 
 
 def ensure_dirs() -> None:

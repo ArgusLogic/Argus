@@ -424,6 +424,13 @@ async def main() -> None:
     tool_blocklist = security.get("tool_blocklist", [])
     require_approval_for = security.get("require_approval_for", [])
 
+    # 自演化（A1+）配置
+    skills_cfg = config.get("skills", {})
+    track_skill_usage = skills_cfg.get("track_usage", True)
+    auto_extract_skills = skills_cfg.get("auto_extract", False)
+    memory_cfg = config.get("memory", {})
+    track_lessons = memory_cfg.get("track_lessons", True)
+
     # 启用文件日志
     if log_to_file:
         file_logger.enable()
@@ -444,6 +451,9 @@ async def main() -> None:
         tool_allowlist=tool_allowlist,
         tool_blocklist=tool_blocklist,
         require_approval_for=require_approval_for,
+        track_skill_usage=track_skill_usage,
+        track_lessons=track_lessons,
+        auto_extract_skills=auto_extract_skills,
     )
 
     print_banner(model)

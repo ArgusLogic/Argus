@@ -166,6 +166,7 @@ class PromptBuilder:
         user_block: str = "",
         skills_text: str = "",
         context_file: str | None = None,
+        lessons_block: str = "",
         # 向后兼容：旧参数（已废弃但不报错）
         memories: list[dict] | None = None,
     ) -> str:
@@ -176,6 +177,7 @@ class PromptBuilder:
             user_block: MemoryMD.render_block("user") 输出
             skills_text: SkillManager.format_for_prompt() 的输出
             context_file: 可选的 .argus.md 内容
+            lessons_block: A3 — MemoryMD.render_block("lessons") 输出（避坑库）
             memories: 已废弃，保留为兼容旧调用
         """
         parts = [BASE_PERSONA.strip()]
@@ -187,6 +189,10 @@ class PromptBuilder:
         # ── USER 块（冻结注入，含容量条） ──
         if user_block:
             parts.append("\n" + user_block)
+
+        # ── A3 LESSONS 块（避坑库，冻结注入） ──
+        if lessons_block:
+            parts.append("\n" + lessons_block)
 
         # ── 技能注入（限 400 tokens）──
         if skills_text:

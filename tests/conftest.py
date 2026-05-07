@@ -60,6 +60,7 @@ def _isolate_argus_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
     monkeypatch.setattr(paths_mod, "MEMORIES_DIR", str(memories_dir))
     monkeypatch.setattr(paths_mod, "MEMORY_MD_PATH", str(memories_dir / "MEMORY.md"))
     monkeypatch.setattr(paths_mod, "USER_MD_PATH", str(memories_dir / "USER.md"))
+    monkeypatch.setattr(paths_mod, "LESSONS_MD_PATH", str(memories_dir / "LESSONS.md"))
 
     # 同步 patch 已 import 这些常量的模块（import-time 拷贝）
     for mod_name in ("agent.memory_md", "agent.skills", "agent.session", "agent.memory"):
@@ -68,6 +69,7 @@ def _isolate_argus_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
             for attr in (
                 "MEMORY_MD_PATH",
                 "USER_MD_PATH",
+                "LESSONS_MD_PATH",
                 "MEMORIES_DIR",
                 "SKILLS_DIR",
                 "DB_PATH",

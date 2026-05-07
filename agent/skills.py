@@ -120,3 +120,43 @@ class SkillManager:
                     args = {}
                 steps.append({"tool": name, "args_template": args})
         return steps
+
+    def extract_tool_names(self, messages: list[dict]) -> list[str]:
+        """从对话消息中提取工具调用名（按顺序，可重复）。"""
+        names: list[str] = []
+        for msg in messages:
+            if msg.get("role") != "assistant":
+                continue
+            for tc in msg.get("tool_calls", []) or []:
+                name = tc.get("function", {}).get("name", "")
+                if name:
+                    names.append(name)
+        return names
+
+    def match_used_skills(self, executed_tools: list[str], min_overlap: float = 0.6) -> list[str]:
+        """根据本轮已执行工具序列，匹配可能被复用的技能名。
+
+        匹配规则（A1）：技能 step 工具名集合与 executed_tools 集合的
+        Jaccard-like 覆盖率（|skill∩exec| / |skill|） ≥ min_overlap，
+        并且技能至少有 2 个步骤（避免单步技能无差别匹配）。
+        """
+        if not executed_tools:
+            return []
+        executed_set = set(executed_tools)
+        matched: list[str] = []
+        for filename in sorted(os.listdir(self.skills_dir)):
+            if not filename.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(self.skills_dir, filename), encoding="utf-8") as f:
+                    skill = json.load(f)
+            except Exception:
+                continue
+            steps = skill.get("steps", []) or []
+            skill_tools = {s.get("tool", "") for s in steps if isinstance(s, dict) and s.get("tool")}
+            if len(skill_tools) < 2:
+                continue
+            overlap = len(skill_tools & executed_set) / len(skill_tools)
+            if overlap >= min_overlap:
+                matched.append(skill.get("name", filename[:-5]))
+        return matched
