@@ -71,6 +71,13 @@ read_allowed_dirs = []
 # 防止多个子代理叠加击穿目标 WAF/rate-limit。
 per_target_concurrency = 20
 
+# ── 自定义字典（issue #7）─────────────────────────────────────────────────
+# 留空 = 用内置字典；指向文件则按行读取（# 起始行视为注释）。
+# subdomain_wordlist = "~/wordlists/subs-100k.txt"
+# directory_wordlist = "~/wordlists/raft-medium.txt"
+subdomain_wordlist = ""
+directory_wordlist = ""
+
 # ── 自演化 / Skills ────────────────────────────────────────────────────────
 [skills]
 # A1: 任务结束后扫描本轮工具调用，与已有技能 step 匹配（≥60% 重合）→ success_count+1

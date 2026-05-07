@@ -1,6 +1,7 @@
 """侦察工具：DNS 查询、子域名枚举、目录爆破、端口扫描、WHOIS、安全头分析。"""
 
 import asyncio
+import contextlib
 import json
 
 import dns.resolver
@@ -9,8 +10,103 @@ import nmap
 
 from agent.tool_registry import registry
 from tools.recon_wordlists import DIRECTORIES, SUBDOMAINS
+from utils.logger import log_warning
 from utils.rate_limiter import target_slot
 from utils.sanitizer import sanitize_url, truncate
+
+
+def _load_custom_wordlist(kind: str) -> list[str] | None:
+    """issue #7：从 config.toml [security] 读取自定义字典文件路径。
+
+    Args:
+        kind: 'subdomain_wordlist' 或 'directory_wordlist'
+
+    Returns:
+        非空 list 或 None（沿用内置字典）。文件每行一个条目，'#' 起始为注释。
+    """
+    import os
+
+    try:
+        from utils.paths import CONFIG_PATH
+
+        if not os.path.exists(CONFIG_PATH):
+            return None
+        import toml
+
+        cfg = toml.load(CONFIG_PATH)
+        path = cfg.get("security", {}).get(kind, "")
+        if not path:
+            return None
+        path = os.path.expanduser(path)
+        if not os.path.isfile(path):
+            log_warning(f"自定义字典文件不存在: {path}")
+            return None
+        with open(path, encoding="utf-8", errors="replace") as f:
+            entries = [line.strip() for line in f if line.strip() and not line.lstrip().startswith("#")]
+        return entries or None
+    except Exception as e:
+        log_warning(f"加载自定义字典 {kind} 失败: {e}")
+        return None
+
+
+def _parse_port_spec(spec: str) -> list[int]:
+    """解析 nmap 风格端口表达式 '21-25,80,443' → 排序去重 int list。"""
+    out: set[int] = set()
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            a, b = part.split("-", 1)
+            try:
+                lo, hi = int(a), int(b)
+                if 1 <= lo <= hi <= 65535:
+                    out.update(range(lo, hi + 1))
+            except ValueError:
+                continue
+        else:
+            try:
+                p = int(part)
+                if 1 <= p <= 65535:
+                    out.add(p)
+            except ValueError:
+                continue
+    return sorted(out)
+
+
+async def _tcp_connect_scan(target: str, ports: str, timeout: float = 1.5) -> str:
+    """nmap 不可用时的纯 Python 兜底（issue #4）。
+
+    并发 TCP connect，仅判定 open/closed；无服务指纹识别。
+    最多扫 1024 个端口，避免被滥用做大范围扫描。
+    """
+    port_list = _parse_port_spec(ports)
+    if not port_list:
+        return "端口表达式无法解析"
+    if len(port_list) > 1024:
+        return f"TCP connect 兜底扫描限 ≤1024 端口（当前 {len(port_list)}）"
+
+    sem = asyncio.Semaphore(50)
+    open_ports: list[int] = []
+
+    async def probe(port: int) -> None:
+        async with target_slot(target), sem:
+            try:
+                fut = asyncio.open_connection(target, port)
+                _reader, writer = await asyncio.wait_for(fut, timeout=timeout)
+                open_ports.append(port)
+                writer.close()
+                with contextlib.suppress(Exception):
+                    await writer.wait_closed()
+            except (TimeoutError, OSError):
+                return
+
+    await asyncio.gather(*(probe(p) for p in port_list))
+    open_ports.sort()
+    if not open_ports:
+        return f"未发现 {target} 的开放端口（TCP connect 兜底，{len(port_list)} 端口）"
+    lines = [f"  {p}/tcp  open  (nmap 未安装，仅 connect 探测)" for p in open_ports]
+    return f"端口扫描结果（TCP connect 兜底）:\n主机: {target}\n" + "\n".join(lines)
 
 
 @registry.tool(
@@ -88,20 +184,23 @@ async def subdomain_enum(domain: str, concurrency: str = "20") -> str:
     max_concurrent = int(concurrency)
     semaphore = asyncio.Semaphore(max_concurrent)
 
+    # issue #7：优先用自定义字典
+    wordlist = _load_custom_wordlist("subdomain_wordlist") or SUBDOMAINS
+
     async def check(sub: str) -> str | None:
         # 全局 per-target 限流（#15.4）：防多个子代理叠加击同一目标
         async with target_slot(domain), semaphore:
             return await _resolve_subdomain(sub, domain)
 
-    tasks = [check(sub) for sub in SUBDOMAINS]
+    tasks = [check(sub) for sub in wordlist]
     results = await asyncio.gather(*tasks)
     found = [r for r in results if r is not None]
 
     if not found:
-        return f"未发现 {domain} 的存活子域名（已检测 {len(SUBDOMAINS)} 个）"
+        return f"未发现 {domain} 的存活子域名（已检测 {len(wordlist)} 个）"
 
     lines = [f"  {r}" for r in found]
-    return f"子域名枚举 ({domain}) — 发现 {len(found)}/{len(SUBDOMAINS)}:\n" + "\n".join(lines)
+    return f"子域名枚举 ({domain}) — 发现 {len(found)}/{len(wordlist)}:\n" + "\n".join(lines)
 
 
 # ─── 目录爆破 ─────────────────────────────────────────────────────────────────
@@ -125,6 +224,10 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
     semaphore = asyncio.Semaphore(max_concurrent)
     found = []
 
+    # issue #7：优先用自定义字典；条目自动补 / 前缀
+    raw_wordlist = _load_custom_wordlist("directory_wordlist") or DIRECTORIES
+    wordlist = [p if p.startswith("/") else "/" + p for p in raw_wordlist]
+
     async def check_path(client: httpx.AsyncClient, path: str) -> None:
         async with target_slot(url), semaphore:
             target = f"{url}{path}"
@@ -142,16 +245,16 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
             verify=False,
             headers={"User-Agent": "Mozilla/5.0 Argus/0.1"},
         ) as client:
-            tasks = [check_path(client, path) for path in DIRECTORIES]
+            tasks = [check_path(client, path) for path in wordlist]
             await asyncio.gather(*tasks)
     except Exception as e:
         return f"目录枚举失败: {e}"
 
     if not found:
-        return f"未发现可访问路径（已检测 {len(DIRECTORIES)} 个）"
+        return f"未发现可访问路径（已检测 {len(wordlist)} 个）"
 
     found.sort()
-    return f"目录枚举 ({url}) — 发现 {len(found)}/{len(DIRECTORIES)}:\n" + "\n".join(found)
+    return f"目录枚举 ({url}) — 发现 {len(found)}/{len(wordlist)}:\n" + "\n".join(found)
 
 
 # ─── 端口扫描 ─────────────────────────────────────────────────────────────────
@@ -183,7 +286,9 @@ async def port_scan(
         loop = asyncio.get_event_loop()
         nm = await loop.run_in_executor(None, _scan)
     except nmap.PortScannerError as e:
-        return f"nmap 未安装或执行失败: {e}\n请确保系统已安装 nmap (https://nmap.org/download)"
+        # issue #4：nmap 未安装时回退到纯 Python TCP connect 扫描
+        log_warning(f"nmap 不可用，回退 TCP connect 扫描: {e}")
+        return await _tcp_connect_scan(target, ports)
     except Exception as e:
         return f"端口扫描失败: {e}"
 
