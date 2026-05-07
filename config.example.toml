@@ -13,8 +13,12 @@ max_retries = 2
 # 日志同时写入文件 (output/logs/)
 log_to_file = true
 # 上下文窗口大小 (tokens)，超过此值的 80% 将触发压缩
-# V4 支持 1M，建议设为 200000 以平衡成本与记忆长度
-context_max_tokens = 200000
+# 不要超过所选模型的实际上下文限制：
+#   deepseek-v4-flash: 128K  →  context_max_tokens = 128000
+#   deepseek-v4-pro:   128K  →  context_max_tokens = 128000
+#   gpt-5.4-mini:      400K  →  context_max_tokens = 400000
+#   claude-sonnet-4-6: 200K  →  context_max_tokens = 200000
+context_max_tokens = 128000
 
 [api_keys]
 # 至少填一个。支持 DeepSeek / OpenAI / Anthropic。
@@ -23,8 +27,9 @@ openai = ""
 anthropic = ""
 
 [browser]
-# headed = true 时会弹出浏览器窗口，方便调试
-headed = true
+# headed = true 会弹出浏览器窗口（调试用）。
+# 无桌面环境的服务器请保持 false，否则缺 XServer 会崩溃。
+headed = false
 # 浏览器超时时间（毫秒）
 timeout = 30000
 

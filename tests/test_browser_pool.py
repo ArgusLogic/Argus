@@ -8,9 +8,42 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from tools.browser import BrowserPool
+from tools.browser import BrowserPool, _is_headed_from_config
 
 pytestmark = pytest.mark.asyncio
+
+
+# ─── _is_headed_from_config (issue #1, #12) ─────────────────────────────────
+
+
+class TestIsHeadedFromConfig:
+    def test_missing_config_returns_false(self, tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(tmp_path / "no_such.toml"))
+        assert _is_headed_from_config() is False
+
+    def test_headed_true_in_config(self, tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("[browser]\nheaded = true\n", encoding="utf-8")
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
+        assert _is_headed_from_config() is True
+
+    def test_headed_false_in_config(self, tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("[browser]\nheaded = false\n", encoding="utf-8")
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
+        assert _is_headed_from_config() is False
+
+    def test_no_browser_section_returns_false(self, tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("[general]\nfoo = 1\n", encoding="utf-8")
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
+        assert _is_headed_from_config() is False
+
+    def test_malformed_config_returns_false(self, tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("not valid toml = = =", encoding="utf-8")
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
+        assert _is_headed_from_config() is False
 
 
 class TestHealthCheck:

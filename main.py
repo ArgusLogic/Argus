@@ -476,10 +476,29 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
     return True
 
 
+def _parse_cli_args() -> dict[str, Any]:
+    """解析顶层 CLI 参数（不抢占 / 命令）。
+
+    支持：
+      --yolo / -y  : 启动时即进入 YOLO 模式（CI/非交互场景必备，issue #6）
+      --help / -h  : 提示用法
+    """
+    args = {"yolo": False}
+    argv = sys.argv[1:]
+    if any(a in ("--help", "-h") for a in argv):
+        print("用法: python main.py [--yolo|-y]")
+        print("  --yolo, -y    启动即跳过审批（适合 CI / 非交互终端）")
+        sys.exit(0)
+    if any(a in ("--yolo", "-y") for a in argv):
+        args["yolo"] = True
+    return args
+
+
 async def main() -> None:
     """主函数：初始化并运行 CLI 交互循环。"""
     from utils.paths import ensure_dirs
 
+    cli_args = _parse_cli_args()
     ensure_dirs()  # 确保 ~/.argus/ 目录结构存在
 
     # 一次性迁移旧 SQLite 记忆到 MD 文件（无副作用，已迁移过会跳过）
@@ -495,6 +514,14 @@ async def main() -> None:
     general = config.get("general", {})
     model = general.get("default_model", "deepseek/deepseek-chat")
     approval_mode = general.get("approval_mode", True)
+
+    # CLI --yolo 或 stdin 非 TTY（CI/pipe）：自动跳过审批，避免卡死（issue #6）
+    is_non_tty = not sys.stdin.isatty()
+    if cli_args["yolo"] or is_non_tty:
+        if approval_mode:
+            reason = "--yolo CLI flag" if cli_args["yolo"] else "non-interactive stdin"
+            log_warning(f"approval_mode=False enforced ({reason})")
+        approval_mode = False
     verbose = general.get("verbose", True)
     tool_timeout = general.get("tool_timeout", 60)
     max_retries = general.get("max_retries", 2)

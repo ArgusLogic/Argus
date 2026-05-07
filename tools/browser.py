@@ -28,6 +28,26 @@ from utils.logger import log_warning
 from utils.sanitizer import sanitize_url, truncate
 
 DEFAULT_TIMEOUT_MS = 30000
+
+
+def _is_headed_from_config() -> bool:
+    """从 config.toml 读取 [browser] headed 设置。
+
+    默认 False（服务器友好），避免无 XServer 环境崩溃。任何异常都退回 False。
+    """
+    try:
+        from utils.paths import CONFIG_PATH
+
+        if os.path.exists(CONFIG_PATH):
+            import toml
+
+            cfg = toml.load(CONFIG_PATH)
+            return bool(cfg.get("browser", {}).get("headed", False))
+    except Exception:
+        pass
+    return False
+
+
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -68,8 +88,14 @@ class BrowserPool:
 
         return True
 
-    async def get_page(self, headed: bool = True, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
-        """获取健康的浏览器页面，必要时重建。"""
+    async def get_page(self, headed: bool | None = None, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
+        """获取健康的浏览器页面，必要时重建。
+
+        Args:
+            headed: None 时从 config.toml 读取 [browser] headed；bool 时显式覆盖。
+        """
+        if headed is None:
+            headed = _is_headed_from_config()
         async with self._lock:
             await self.health_check()
 
@@ -145,8 +171,11 @@ _pool = BrowserPool()
 # ─── 向后兼容的薄包装 ────────────────────────────────────────────────────
 
 
-async def get_page(headed: bool = True, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
-    """（兼容旧 API）获取或创建浏览器页面，单例模式 + 健康检查。"""
+async def get_page(headed: bool | None = None, timeout: int = DEFAULT_TIMEOUT_MS) -> Page:
+    """（兼容旧 API）获取或创建浏览器页面，单例模式 + 健康检查。
+
+    headed=None 时从 config.toml 读取，避免服务器环境崩溃。
+    """
     return await _pool.get_page(headed=headed, timeout=timeout)
 
 
