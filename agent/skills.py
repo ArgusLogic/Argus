@@ -6,14 +6,25 @@ from datetime import datetime
 from typing import Any
 
 from utils.logger import log_error, log_info, log_warning
-from utils.paths import SKILLS_DIR
+from utils.paths import SKILLS_ARCHIVE_DIR, SKILLS_DIR
 
 
 class SkillManager:
     """管理 Agent 的可复用技能。"""
 
-    def __init__(self, skills_dir: str = SKILLS_DIR):
+    def __init__(
+        self,
+        skills_dir: str = SKILLS_DIR,
+        archive_dir: str | None = None,
+    ):
         self.skills_dir = skills_dir
+        # 默认归档目录：与 skills_dir 同级（便于测试隔离）
+        if archive_dir is None:
+            parent = os.path.dirname(os.path.abspath(skills_dir))
+            archive_dir = (
+                SKILLS_ARCHIVE_DIR if skills_dir == SKILLS_DIR else os.path.join(parent, "skills_archive")
+            )
+        self.archive_dir = archive_dir
         os.makedirs(self.skills_dir, exist_ok=True)
 
     def _skill_path(self, name: str) -> str:
@@ -35,6 +46,8 @@ class SkillManager:
                         "description": skill.get("description", ""),
                         "steps_count": len(skill.get("steps", [])),
                         "success_count": skill.get("success_count", 0),
+                        "pinned": bool(skill.get("pinned", False)),
+                        "created_at": skill.get("created_at", ""),
                     }
                 )
             except Exception:
@@ -132,6 +145,35 @@ class SkillManager:
                 if name:
                     names.append(name)
         return names
+
+    # ─── B1 Curator helpers ─────────────────────────────────────────────
+
+    def set_pinned(self, name: str, pinned: bool) -> bool:
+        """B1: 标记/取消 pinned。pinned 技能 curator 不会动它。"""
+        skill = self.get_skill(name)
+        if not skill:
+            return False
+        skill["pinned"] = bool(pinned)
+        self.save_skill(skill)
+        return True
+
+    def archive_skill(self, name: str) -> bool:
+        """B1: 把技能从 skills/ 移到 skills_archive/。"""
+        path = self._skill_path(name)
+        if not os.path.exists(path):
+            return False
+        os.makedirs(self.archive_dir, exist_ok=True)
+        # 文件名带时间戳避免重名
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = name.replace("/", "_").replace("\\", "_")
+        target = os.path.join(self.archive_dir, f"{safe_name}__{ts}.json")
+        try:
+            os.replace(path, target)
+            log_info(f"技能已归档: {name} → {target}")
+            return True
+        except Exception as e:
+            log_error(f"归档技能失败 {name}: {e}")
+            return False
 
     def match_used_skills(self, executed_tools: list[str], min_overlap: float = 0.6) -> list[str]:
         """根据本轮已执行工具序列，匹配可能被复用的技能名。

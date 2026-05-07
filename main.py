@@ -350,13 +350,15 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
 
     elif command == "/skills":
         if len(parts) < 2:
-            log_warning("用法: /skills list|show|delete")
+            log_warning("用法: /skills list|show|delete|pin|unpin")
         elif parts[1] == "list":
             skills = engine.skills.list_skills()
             if skills:
                 for sk in skills:
+                    pin_marker = "📌 " if sk.get("pinned") else ""
                     console.print(
-                        f"  [bold]{sk['name']}[/bold] — {sk['description']} ({sk['steps_count']} 步, 成功 {sk['success_count']} 次)"
+                        f"  {pin_marker}[bold]{sk['name']}[/bold] — {sk['description']} "
+                        f"({sk['steps_count']} 步, 成功 {sk['success_count']} 次)"
                     )
             else:
                 log_info("暂无已保存的技能")
@@ -376,6 +378,30 @@ async def handle_command(cmd: str, engine: AgentEngine) -> bool:
                 log_warning("用法: /skills delete <name>")
             else:
                 engine.skills.delete_skill(parts[2])
+        elif parts[1] == "pin":
+            if len(parts) < 3:
+                log_warning("用法: /skills pin <name>")
+            elif engine.skills.set_pinned(parts[2], True):
+                log_info(f"📌 已 pin: {parts[2]}（curator 不会动它）")
+            else:
+                log_warning(f"技能不存在: {parts[2]}")
+        elif parts[1] == "unpin":
+            if len(parts) < 3:
+                log_warning("用法: /skills unpin <name>")
+            elif engine.skills.set_pinned(parts[2], False):
+                log_info(f"已 unpin: {parts[2]}")
+            else:
+                log_warning(f"技能不存在: {parts[2]}")
+
+    elif command == "/curator":
+        # B1: /curator run [--dry-run] — 立即执行一次 curator
+        from agent.curator import run_curator, write_report
+
+        dry_run = "--dry-run" in parts or "--dry" in parts
+        report = run_curator(engine.skills, dry_run=dry_run)
+        path = write_report(report)
+        console.print(report.render_markdown())
+        log_info(f"curator 完成 → {path}")
 
     elif command == "/clear":
         from agent.prompts import SYSTEM_PROMPT

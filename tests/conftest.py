@@ -57,13 +57,25 @@ def _isolate_argus_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
     monkeypatch.setattr(paths_mod, "SCREENSHOTS_DIR", str(screenshots_dir))
     monkeypatch.setattr(paths_mod, "LOGS_DIR", str(logs_dir))
     monkeypatch.setattr(paths_mod, "SKILLS_DIR", str(skills_dir))
+    skills_archive_dir = home / "skills_archive"
+    skills_archive_dir.mkdir(parents=True, exist_ok=True)
+    curator_reports_dir = home / "curator_reports"
+    curator_reports_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(paths_mod, "SKILLS_ARCHIVE_DIR", str(skills_archive_dir))
+    monkeypatch.setattr(paths_mod, "CURATOR_REPORTS_DIR", str(curator_reports_dir))
     monkeypatch.setattr(paths_mod, "MEMORIES_DIR", str(memories_dir))
     monkeypatch.setattr(paths_mod, "MEMORY_MD_PATH", str(memories_dir / "MEMORY.md"))
     monkeypatch.setattr(paths_mod, "USER_MD_PATH", str(memories_dir / "USER.md"))
     monkeypatch.setattr(paths_mod, "LESSONS_MD_PATH", str(memories_dir / "LESSONS.md"))
 
     # 同步 patch 已 import 这些常量的模块（import-time 拷贝）
-    for mod_name in ("agent.memory_md", "agent.skills", "agent.session", "agent.memory"):
+    for mod_name in (
+        "agent.memory_md",
+        "agent.skills",
+        "agent.session",
+        "agent.memory",
+        "agent.curator",
+    ):
         if mod_name in sys.modules:
             mod = sys.modules[mod_name]
             for attr in (
@@ -72,6 +84,8 @@ def _isolate_argus_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
                 "LESSONS_MD_PATH",
                 "MEMORIES_DIR",
                 "SKILLS_DIR",
+                "SKILLS_ARCHIVE_DIR",
+                "CURATOR_REPORTS_DIR",
                 "DB_PATH",
                 "SESSIONS_DIR",
             ):

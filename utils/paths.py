@@ -36,6 +36,8 @@ LOGS_DIR = os.path.join(OUTPUT_DIR, "logs")
 
 # ─── 技能目录 ────────────────────────────────────────────────────────────────
 SKILLS_DIR = os.path.join(SECAGENT_HOME, "skills")
+SKILLS_ARCHIVE_DIR = os.path.join(SECAGENT_HOME, "skills_archive")
+CURATOR_REPORTS_DIR = os.path.join(SECAGENT_HOME, "curator_reports")
 
 # ─── 记忆目录（MD 文件存储，Hermes 风格） ───────────────────────────────────
 MEMORIES_DIR = os.path.join(SECAGENT_HOME, "memories")

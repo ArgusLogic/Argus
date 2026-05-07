@@ -64,6 +64,18 @@ track_usage = true
 # 默认关闭；建议在确认效果后再开启
 auto_extract = false
 
+# ── 自演化 / Curator (B1+B2) ──────────────────────────────────────────────
+[skills.curator]
+# B1: 默认关闭。建议通过独立后台进程运行：
+#     python -m agent.curator daemon --interval 24h
+# 启用此项仅控制下方 update_user_profile 是否在 daemon 中跑（B2）
+enabled = false
+similarity_threshold = 0.85
+archive_after_days = 30
+# B2: 用 LLM 分析最近会话归纳用户画像，写入 USER.md
+# ⚠️ 每次 daemon 周期会触发一次 LLM 调用
+update_user_profile = false
+
 # ── 自演化 / 记忆（A3: 失败学习自动入库）────────────────────────────────────
 [memory]
 # 启发式扫描本轮 tool 结果，识别失败模式（403/429/WAF/超时/captcha 等）
