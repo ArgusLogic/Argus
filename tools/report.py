@@ -91,6 +91,39 @@ async def generate_report(
     sections = []
     sections.append(f"# 侦察报告 — {target}\n")
     sections.append(f"> 生成时间: {now}\n")
+
+    # Day2-1: 顶部 Top-3 执行摘要（启发式扫描；无信号时不渲染）
+    try:
+        from tools._report_summary import build_executive_summary
+
+        summary_block = build_executive_summary(
+            dns_info=dns_info,
+            headers=headers,
+            subdomains=subdomains,
+            open_ports=open_ports,
+            directories=directories,
+            whois_info=whois_info,
+        )
+        if summary_block:
+            sections.append(summary_block)
+    except Exception:
+        pass  # 摘要失败不阻塞报告生成
+
+    # Day2-2: 顶部拓扑图
+    try:
+        from tools._report_topology import build_topology
+
+        topology_block = build_topology(
+            target=target,
+            dns_info=dns_info,
+            subdomains=subdomains,
+            open_ports=open_ports,
+        )
+        if topology_block:
+            sections.append(topology_block)
+    except Exception:
+        pass
+
     sections.append(f"## 概述\n\n{summary}\n")
 
     optional_sections = [
@@ -110,6 +143,16 @@ async def generate_report(
     for title, content in optional_sections:
         if content and content.strip():
             sections.append(f"## {title}\n\n```\n{content}\n```\n")
+
+    # Day2-3: 底部追加 LESSONS 命中（仅在有相关历史教训时渲染）
+    try:
+        from tools._report_lessons import render_lessons_block
+
+        lessons_block = render_lessons_block(target)
+        if lessons_block:
+            sections.append(lessons_block)
+    except Exception:
+        pass
 
     sections.append("---\n*由 Argus 自动生成*\n")
 
