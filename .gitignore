@@ -45,3 +45,5 @@ _msg.txt
 
 # ad-hoc benchmark / scan logs（不提交）
 bench_*.log
+
+.commit_msg.tmp
