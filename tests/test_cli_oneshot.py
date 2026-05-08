@@ -75,7 +75,7 @@ class TestParseCliArgs:
 
     def test_default_no_args(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
         out = self._parse()
-        assert out == {"yolo": False, "target": None, "mode": "recon"}
+        assert out == {"yolo": False, "target": None, "mode": "recon", "model": None}
 
     def test_yolo_short(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
         out = self._parse("-y")

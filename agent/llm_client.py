@@ -30,9 +30,18 @@ class StreamEvent:
 class LLMClient:
     """封装 litellm，提供流式 + function calling 的统一接口。"""
 
-    def __init__(self, model: str, api_keys: dict | None = None):
+    def __init__(
+        self,
+        model: str,
+        api_keys: dict | None = None,
+        api_bases: dict | None = None,
+    ):
         self.model = model
         self.reasoning_effort: str | None = None  # None=默认, "off"/"high"/"max"
+        # provider 前缀 → 自定义 base URL（例如小米 Token Plan 独立端点）
+        self.api_bases: dict[str, str] = {
+            k: v.rstrip("/") for k, v in (api_bases or {}).items() if v
+        }
         self._setup_api_keys(api_keys or {})
         # 关闭 litellm 自带日志，用我们自己的
         litellm.suppress_debug_info = True
@@ -51,6 +60,40 @@ class LLMClient:
             if key and not os.environ.get(env_var):
                 os.environ[env_var] = key
 
+    def _resolve_api_base(self, model: str) -> str | None:
+        """根据 model 前缀找到匹配的自定义 api_base。
+
+        例如 model='xiaomi_mimo/mimo-v2.5-pro' 且 api_bases['xiaomi_mimo']='https://token-plan-sgp.xiaomimimo.com/v1'
+        → 返回该 URL 供 litellm 使用。
+        """
+        if not self.api_bases or "/" not in model:
+            return None
+        provider = model.split("/", 1)[0]
+        return self.api_bases.get(provider)
+
+    def _resolve_litellm_args(self, model: str) -> dict:
+        """把我们的 'provider/model' 表示转成 litellm 实际要吃的参数。
+
+        关键兼容性处理：litellm 内置 xiaomi_mimo provider 路由当前不支持 tools/
+        tool_choice 参数，而小米 Token Plan 端点是 OpenAI 协议兼容的。
+        所以当用户给 xiaomi_mimo 配了 custom api_base（Token Plan 场景）时，
+        我们就透明地走 'openai/<model>' 路由 + 显式 api_base + 显式 api_key，
+        这样 tools 一切正常。其他 provider 保持原样。
+        """
+        base = self._resolve_api_base(model)
+        if not base or "/" not in model:
+            return {"model": model}
+        provider, rest = model.split("/", 1)
+        if provider == "xiaomi_mimo":
+            # 以 openai-compat 身份送给 litellm，携带 base + key
+            key = os.environ.get("XIAOMI_MIMO_API_KEY") or os.environ.get("OPENAI_API_KEY")
+            out: dict = {"model": f"openai/{rest}", "api_base": base}
+            if key:
+                out["api_key"] = key
+            return out
+        # 其他 provider：保留 model，只注入 api_base
+        return {"model": model, "api_base": base}
+
     def switch_model(self, model: str) -> None:
         log_info(f"模型切换: {self.model} → {model}")
         self.model = model
@@ -63,10 +106,10 @@ class LLMClient:
     ) -> dict:
         """非流式调用，返回完整 response。"""
         kwargs: dict = {
-            "model": self.model,
             "messages": messages,
             "temperature": temperature,
         }
+        kwargs.update(self._resolve_litellm_args(self.model))
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"
@@ -90,12 +133,12 @@ class LLMClient:
     ) -> AsyncIterator:
         """流式调用，返回 async iterator。"""
         kwargs: dict = {
-            "model": self.model,
             "messages": messages,
             "temperature": temperature,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        kwargs.update(self._resolve_litellm_args(self.model))
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = "auto"

@@ -160,6 +160,10 @@ def parse_rdap_response(data: dict) -> dict:
 def format_rdap_summary(parsed: dict) -> str:
     """把 parse_rdap_response 输出 pretty-print 成展示用文本。"""
     lines = []
+    if parsed.get("_queried_as") and parsed.get("_resolved_via"):
+        lines.append(
+            f"  (子域查询 {parsed['_queried_as']} 回退到注册域 {parsed['_resolved_via']})"
+        )
     if parsed.get("domain"):
         lines.append(f"  域名:        {parsed['domain']}")
     if parsed.get("registrar"):
@@ -180,12 +184,51 @@ def format_rdap_summary(parsed: dict) -> str:
     return "\n".join(lines) if lines else "(无可解析字段)"
 
 
-async def lookup_rdap(domain: str, *, client: httpx.AsyncClient | None = None) -> dict | None:
-    """对外主入口：拿到 RDAP 解析结果。失败返 None。"""
+def _registrable_candidates(domain: str) -> list[str]:
+    """生成尝试链：原样 -> 最后 2 段 -> 最后 3 段。
+
+    RDAP 只认可注册域（eTLD+1）；子域名（如 a.b.example.com）需要退到 `example.com`。
+    没接 PSL，所以按"去掉一级 label"的贪婪回退，足以覆盖 .com/.org/.net 等常见 gTLD；
+    对 .co.uk 这类双段 TLD 会在第二轮命中。
+    """
     domain = domain.strip().rstrip(".").lower()
     if "." not in domain:
-        return None
+        return []
+    labels = domain.split(".")
+    seen: list[str] = []
+    # 从最长到最短尝试；RDAP 服务端对未注册的子域返 404，对父域会返 200
+    for cut in range(len(labels) - 1):
+        candidate = ".".join(labels[cut:])
+        if candidate not in seen and "." in candidate:
+            seen.append(candidate)
+    return seen
+
+
+async def _try_lookup_one(client: httpx.AsyncClient, bootstrap: dict, domain: str) -> dict | None:
     tld = domain.rsplit(".", 1)[-1]
+    server = find_rdap_server(bootstrap, tld)
+    if not server:
+        return None
+    try:
+        resp = await client.get(f"{server}/domain/{domain}", timeout=10.0)
+    except Exception:
+        return None
+    if resp.status_code != 200:
+        return None
+    try:
+        return parse_rdap_response(resp.json())
+    except Exception:
+        return None
+
+
+async def lookup_rdap(domain: str, *, client: httpx.AsyncClient | None = None) -> dict | None:
+    """对外主入口：拿到 RDAP 解析结果。失败返 None。
+
+    支持子域名：先试原样，失败按 label 逐级回退到注册域。
+    """
+    candidates = _registrable_candidates(domain)
+    if not candidates:
+        return None
 
     own_client = client is None
     if client is None:
@@ -195,19 +238,16 @@ async def lookup_rdap(domain: str, *, client: httpx.AsyncClient | None = None) -
         bootstrap = await fetch_bootstrap(client)
         if not bootstrap:
             return None
-        server = find_rdap_server(bootstrap, tld)
-        if not server:
-            return None
-        try:
-            resp = await client.get(f"{server}/domain/{domain}", timeout=10.0)
-        except Exception:
-            return None
-        if resp.status_code != 200:
-            return None
-        try:
-            return parse_rdap_response(resp.json())
-        except Exception:
-            return None
+        for candidate in candidates:
+            result = await _try_lookup_one(client, bootstrap, candidate)
+            if result:
+                # 查子域命中父域时，保留输入子域在 domain 字段前面作提示
+                original = candidates[0]
+                if candidate != original:
+                    result["_queried_as"] = original
+                    result["_resolved_via"] = candidate
+                return result
+        return None
     finally:
         if own_client:
             await client.aclose()

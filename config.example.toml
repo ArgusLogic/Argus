@@ -34,6 +34,17 @@ anthropic = ""
 # 小米 MiMo（platform.xiaomimimo.com，参与 100T 创造者激励计划可领免费 Token Plan）
 xiaomi_mimo = ""
 
+# ── 自定义 provider base URL（按需） ───────────────────────────────────────
+# 多数 provider 用默认 endpoint 即可，留空。个别情况需覆盖：
+#   · 小米 Token Plan 创作者激励计划会发一个独立端点
+#     https://token-plan-sgp.xiaomimimo.com/v1（OpenAI 兼容协议）
+#     命中的模型前缀必须与下面字典 key 一致（本项目用 `xiaomi_mimo`）。
+#   · 走企业代理 / Azure OpenAI 自有网关时也可以用这个改 base。
+# 示例：
+#   xiaomi_mimo = "https://token-plan-sgp.xiaomimimo.com/v1"
+[api_bases]
+xiaomi_mimo = ""
+
 [browser]
 # headed = true 会弹出浏览器窗口（调试用）。
 # 无桌面环境的服务器请保持 false，否则缺 XServer 会崩溃。

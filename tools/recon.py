@@ -101,7 +101,9 @@ async def _tcp_connect_scan(target: str, ports: str, timeout: float = 1.5) -> st
     await asyncio.gather(*(probe(p) for p in port_list))
     open_ports.sort()
     if not open_ports:
-        return f"未发现 {target} 的开放端口（TCP connect 兜底，{len(port_list)} 端口）"
+        note = await _reserved_range_note(target)
+        base = f"未发现 {target} 的开放端口（TCP connect 兜底，{len(port_list)} 端口）"
+        return base + "\n" + note if note else base
     lines = [f"  {p}/tcp  open  (nmap 未安装，仅 connect 探测)" for p in open_ports]
     return f"端口扫描结果（TCP connect 兜底）:\n主机: {target}\n" + "\n".join(lines)
 
@@ -152,16 +154,45 @@ async def dns_lookup(domain: str, record_type: str = "ALL") -> str:
 
 
 async def _resolve_subdomain(sub: str, domain: str) -> str | None:
-    """尝试解析一个子域名，返回 IP 或 None。"""
-    fqdn = f"{sub}.{domain}"
+    """尝试解析一个子域名，返回 'fqdn → ip1, ip2' 或 None。"""
+    ips = await _resolve_ips(sub, domain)
+    if not ips:
+        return None
+    return f"{sub}.{domain} → {', '.join(ips)}"
+
+
+async def _resolve_ips(sub: str, domain: str) -> list[str]:
+    """仅返回 IP 列表。"""
+    fqdn = f"{sub}.{domain}" if sub else domain
     try:
         answers = await asyncio.get_event_loop().run_in_executor(
             None, lambda: dns.resolver.resolve(fqdn, "A")
         )
-        ips = [str(r) for r in answers]
-        return f"{fqdn} → {', '.join(ips)}"
+        return [str(r) for r in answers]
     except Exception:
-        return None
+        return []
+
+
+async def _detect_wildcard_ips(domain: str) -> set[str]:
+    """issue #20: 探测 DNS wildcard 记录。
+
+    用 3 个几乎不可能真实存在的随机子域探测，若它们都解析并且命中相同 IP 集合，
+    认为是 wildcard，把这些 IP 返回作为后续过滤集合。
+    无 wildcard 时返回空 set。
+    """
+    probes = [f"argus-nx-{secrets.token_hex(6)}" for _ in range(3)]
+    results = await asyncio.gather(*(_resolve_ips(p, domain) for p in probes))
+    alive = [set(r) for r in results if r]
+    # 3 个随机子域里 ≥2 个都解析出 IP 且集合相同 → 判定 wildcard
+    if len(alive) < 2:
+        return set()
+    first = alive[0]
+    if all(s == first for s in alive[1:]):
+        return first
+    # 退一步：如果 3 个都有解析但 IP 集合不稳定，仍取并集作为 wildcard pool
+    if len(alive) == 3:
+        return set().union(*alive)
+    return set()
 
 
 @registry.tool(
@@ -184,20 +215,43 @@ async def subdomain_enum(domain: str, concurrency: str = "20") -> str:
     # issue #7：优先用自定义字典
     wordlist = _load_custom_wordlist("subdomain_wordlist") or SUBDOMAINS
 
-    async def check(sub: str) -> str | None:
-        # 全局 per-target 限流（#15.4）：防多个子代理叠加击同一目标
+    # issue #20：先探 wildcard，避免 2000/2000 假阳性
+    wildcard_ips = await _detect_wildcard_ips(domain)
+
+    async def check(sub: str) -> tuple[str, list[str]] | None:
         async with target_slot(domain), semaphore:
-            return await _resolve_subdomain(sub, domain)
+            ips = await _resolve_ips(sub, domain)
+            return (sub, ips) if ips else None
 
     tasks = [check(sub) for sub in wordlist]
-    results = await asyncio.gather(*tasks)
-    found = [r for r in results if r is not None]
+    raw = await asyncio.gather(*tasks)
 
-    if not found:
-        return f"未发现 {domain} 的存活子域名（已检测 {len(wordlist)} 个）"
+    real_hits: list[str] = []
+    wildcard_hits = 0
+    for entry in raw:
+        if entry is None:
+            continue
+        sub, ips = entry
+        # 完全落在 wildcard IP 集合里 → 视为假阳性
+        if wildcard_ips and set(ips).issubset(wildcard_ips):
+            wildcard_hits += 1
+            continue
+        real_hits.append(f"{sub}.{domain} → {', '.join(ips)}")
 
-    lines = [f"  {r}" for r in found]
-    return f"子域名枚举 ({domain}) — 发现 {len(found)}/{len(wordlist)}:\n" + "\n".join(lines)
+    header_lines: list[str] = []
+    if wildcard_ips:
+        header_lines.append(
+            f"⚠ 检测到 wildcard DNS (*.{domain} → {', '.join(sorted(wildcard_ips))})，"
+            f"已过滤 {wildcard_hits} 条疑似假阳性"
+        )
+
+    if not real_hits:
+        msg = f"未发现 {domain} 的存活子域名（已检测 {len(wordlist)} 个）"
+        return ("\n".join(header_lines) + "\n" + msg) if header_lines else msg
+
+    lines = [f"  {r}" for r in real_hits]
+    body = f"子域名枚举 ({domain}) — 发现 {len(real_hits)}/{len(wordlist)}:\n" + "\n".join(lines)
+    return ("\n".join(header_lines) + "\n" + body) if header_lines else body
 
 
 # ─── 目录爆破 ─────────────────────────────────────────────────────────────────
@@ -376,9 +430,59 @@ async def port_scan(
                 results.append(f"  {port}/{proto}  {state}  {service}")
 
     if not results:
-        return f"未发现 {target} 的开放端口"
+        note = await _reserved_range_note(target)
+        base = f"未发现 {target} 的开放端口"
+        return base + "\n" + note if note else base
 
     return "端口扫描结果:\n" + "\n".join(results)
+
+
+# issue #20: IANA / RFC 保留地址段 → 提示用户为何扫不到
+_RESERVED_NOTES: tuple[tuple[str, str], ...] = (
+    ("10.0.0.0/8", "RFC1918 内网私有段"),
+    ("172.16.0.0/12", "RFC1918 内网私有段"),
+    ("192.168.0.0/16", "RFC1918 内网私有段"),
+    ("100.64.0.0/10", "RFC6598 运营商级 NAT (CGNAT)"),
+    ("198.18.0.0/15", "RFC2544 基准测试段（IANA 保留，不可路由）"),
+    ("203.0.113.0/24", "RFC5737 文档示例段"),
+    ("198.51.100.0/24", "RFC5737 文档示例段"),
+    ("192.0.2.0/24", "RFC5737 文档示例段"),
+    ("127.0.0.0/8", "回环地址"),
+    ("169.254.0.0/16", "RFC3927 链路本地地址"),
+)
+
+
+def _ip_in_cidr(ip: str, cidr: str) -> bool:
+    import ipaddress
+
+    try:
+        return ipaddress.ip_address(ip) in ipaddress.ip_network(cidr)
+    except ValueError:
+        return False
+
+
+async def _reserved_range_note(target: str) -> str:
+    """若 target 解析到保留段，返回一行说明；否则空串。"""
+    import ipaddress
+
+    # 可能直接是 IP
+    try:
+        ipaddress.ip_address(target)
+        ip = target
+    except ValueError:
+        ips = await _resolve_ips("", target)
+        if not ips:
+            return ""
+        ip = ips[0]
+
+    for cidr, note in _RESERVED_NOTES:
+        if _ip_in_cidr(ip, cidr):
+            return (
+                f"⚠ 目标解析到 {ip}（{cidr}，{note}）；"
+                f"该地址段在公网不可路由，端口扫描会失败。"
+                f"若需要实际测试，请提供可路由 IP 或在对应网络内运行。"
+            )
+    return ""
 
 
 # ─── WHOIS 查询 ──────────────────────────────────────────────────────────────

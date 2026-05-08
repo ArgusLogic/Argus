@@ -464,17 +464,19 @@ def _parse_cli_args() -> dict[str, Any]:
       --yolo / -y                  : 启动即 YOLO 模式（issue #6）
       --target / -t <url|domain>   : issue #8 一键侦察目标
       --mode <recon|scan|full>     : issue #8 侦察强度，默认 recon
+      --model <id>                 : 覆盖 config 的 default_model（如 xiaomi_mimo/mimo-v2.5-pro）
       --help / -h                  : 提示用法
     """
     from agent.recon_modes import VALID_MODES
 
-    args: dict[str, Any] = {"yolo": False, "target": None, "mode": "recon"}
+    args: dict[str, Any] = {"yolo": False, "target": None, "mode": "recon", "model": None}
     argv = sys.argv[1:]
     if any(a in ("--help", "-h") for a in argv):
-        print("用法: python main.py [--yolo|-y] [-t <target> [--mode <recon|scan|full>]]")
+        print("用法: python main.py [--yolo|-y] [-t <target> [--mode <recon|scan|full>]] [--model <id>]")
         print("  --yolo, -y           启动即跳过审批（CI / 非交互终端）")
         print("  --target, -t URL     一次性侦察该目标，跑完即退出（issue #8）")
         print(f"  --mode MODE          侦察强度: {' | '.join(VALID_MODES)}（默认 recon）")
+        print("  --model ID           覆盖 config.toml 的 default_model")
         sys.exit(0)
 
     i = 0
@@ -500,6 +502,12 @@ def _parse_cli_args() -> dict[str, Any]:
                 )
                 sys.exit(2)
             args["mode"] = mode
+            i += 1
+        elif a == "--model":
+            if i + 1 >= len(argv):
+                print("错误: --model 需要参数", file=sys.stderr)
+                sys.exit(2)
+            args["model"] = argv[i + 1]
             i += 1
         i += 1
 
@@ -527,7 +535,7 @@ async def main() -> None:
     config = load_config()
 
     general = config.get("general", {})
-    model = general.get("default_model", "deepseek/deepseek-chat")
+    model = cli_args.get("model") or general.get("default_model", "deepseek/deepseek-chat")
     approval_mode = general.get("approval_mode", True)
 
     # CLI --yolo / --target / stdin 非 TTY：自动跳过审批，避免卡死（issue #6 / #8）
@@ -549,6 +557,7 @@ async def main() -> None:
     context_max_tokens = general.get("context_max_tokens", 200000)
 
     api_keys = config.get("api_keys", {})
+    api_bases = config.get("api_bases", {})
     security = config.get("security", {})
     allowed_domains = security.get("allowed_domains", [])
     tool_allowlist = security.get("tool_allowlist", [])
@@ -568,7 +577,7 @@ async def main() -> None:
         file_logger.enable()
 
     # 初始化 LLM 客户端
-    llm = LLMClient(model=model, api_keys=api_keys)
+    llm = LLMClient(model=model, api_keys=api_keys, api_bases=api_bases)
 
     # 初始化 Agent 引擎
     engine = AgentEngine(
