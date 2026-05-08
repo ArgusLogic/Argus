@@ -47,49 +47,36 @@ _ARGUS_LINES = [
 
 
 def print_banner(model: str) -> None:
-    """打印居中徽章 + 标语 + 元信息（参考 React Ink 源版式）。"""
-    from rich.align import Align
-    from rich.console import Group
+    """精简版启动横幅：左侧 logo + 右侧 3 行关键信息（Claude Code 风）。"""
+    from rich.table import Table
     from rich.text import Text as RichText
+
+    from utils._native import has_native
 
     cwd = os.getcwd()
     model_short = model.split("/")[-1] if "/" in model else model
     n_tools = len(registry.list_tools())
-
-    label = "A R G U S   P A N O P T E S   M A T R I X"
-
-    # 用 Rich Align 自动居中（按真实终端宽度）
-    icon_group = Group(*[RichText.from_markup(line) for line in _ARGUS_LINES])
-    console.print(Align.center(icon_group))
-    console.print()
-    console.print(Align.center(RichText.from_markup(f"[#58A6FF]{label}[/]")))
-    console.print()
-
-    # 元信息：3 行同样居中
-    from utils._native import has_native
-
     native_tag = "[#3fb950]⚡rust[/]" if has_native() else "[#484f58]py[/]"
-    info_lines = [
+
+    # 右侧 3 行（logo 占 4 行，顶格对齐 logo 第 2 行）
+    info_rows = [
+        "",
         f"[bold #e6edf3]Argus[/] [#7d8590]v0.1[/] [#484f58]·[/] [#7d8590]{model_short}[/]",
-        f"[#7d8590]{n_tools} tools loaded[/] [#484f58]·[/] [#7d8590]/help[/] [#484f58]·[/] {native_tag}",
-        "[#7d8590]ESC 中断回复 · Ctrl+C 退出[/]",
+        f"[#7d8590]{n_tools} tools loaded[/] [#484f58]·[/] [#7d8590]/help[/] [#484f58]·[/] [#7d8590]Esc to interrupt[/] [#484f58]·[/] {native_tag}",
         f"[#484f58]{cwd}[/]",
     ]
-    info_group = Group(*[RichText.from_markup(line) for line in info_lines])
-    console.print(Align.center(info_group))
+
+    tbl = Table.grid(padding=(0, 2))
+    tbl.add_column(no_wrap=True)
+    tbl.add_column(no_wrap=True)
+    for i in range(4):
+        tbl.add_row(
+            RichText.from_markup(_ARGUS_LINES[i]),
+            RichText.from_markup(info_rows[i]),
+        )
+
     console.print()
-
-    # Try 提示（居中）
-    tips = [
-        '"对 example.com 做信息收集"',
-        '"分析这个登录页的 API 接口"',
-        '"扫描子域名 + 端口"',
-        '"抓包并分析 API 接口"',
-    ]
-    import random
-
-    tip = random.choice(tips)
-    console.print(Align.center(RichText.from_markup(f"[#484f58]›  Try {tip}[/]")))
+    console.print(tbl)
     console.print()
 
 
