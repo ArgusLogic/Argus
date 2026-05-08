@@ -145,11 +145,15 @@ class BrowserPool:
         self.max_idle_seconds = max_idle_seconds
 
     async def health_check(self) -> bool:
-        """检查浏览器/页面是否健康。不健康时自动清理状态以便下次重建。"""
-        # 长时间空闲：主动释放
+        """检查浏览器/页面是否健康。不健康时自动清理状态以便下次重建。
+
+        注意：此方法被 ``get_page`` 在持有 ``self._lock`` 时调用，因此清理逻辑
+        必须用 ``_teardown``（不抢锁）而非 ``close``（抢锁），否则死锁。
+        """
+        # 长时间空闲：主动释放（直接走 _teardown，避免锁递归）
         if self._last_used and (time.time() - self._last_used) > self.max_idle_seconds:
             log_warning(f"浏览器空闲超过 {self.max_idle_seconds}s，主动关闭")
-            await self.close()
+            await self._teardown()
             return False
 
         # 浏览器进程死了
@@ -389,6 +393,7 @@ async def browser_get_text(selector: str = "") -> str:
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_screenshot(filename: str = "screenshot.png") -> str:
     page = await get_page()
     from utils.paths import SCREENSHOTS_DIR
@@ -410,6 +415,7 @@ async def browser_screenshot(filename: str = "screenshot.png") -> str:
         "script": {"type": "string", "description": "要执行的 JavaScript 代码"},
     },
 )
+@_retry_on_broken_pipe
 async def browser_console_exec(script: str) -> str:
     await get_page()
     ctx = _pool.get_active_context()
@@ -495,6 +501,7 @@ _BUILTIN_WAITS = {"page_loaded", "network_idle", "ajax_complete", "sse_closed", 
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_wait_for(condition: str, timeout: str = "30000", poll_interval: str = "500") -> str:
     import time as _time
 
@@ -581,6 +588,7 @@ async def browser_wait_for(condition: str, timeout: str = "30000", poll_interval
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_tabs(action: str, tab_index: str = "") -> str:
     pool = get_pool()
     if pool._context is None:
@@ -673,6 +681,7 @@ async def browser_tabs(action: str, tab_index: str = "") -> str:
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_frame(selector: str = "") -> str:
     pool = get_pool()
 
@@ -713,6 +722,7 @@ async def browser_frame(selector: str = "") -> str:
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_upload(selector: str, file_path: str) -> str:
     from utils.safe_path import is_path_allowed
 
@@ -755,6 +765,7 @@ async def browser_upload(selector: str, file_path: str) -> str:
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_keyboard(type: str, key: str, selector: str = "") -> str:
     page = await get_page()
     action = type.lower().strip()
@@ -815,6 +826,7 @@ async def browser_keyboard(type: str, key: str, selector: str = "") -> str:
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_download(save_path: str, trigger_selector: str = "", timeout: str = "30000") -> str:
     page = await get_page()
     try:

@@ -135,6 +135,9 @@ class AgentEngine:
         self._memory_injected = False
         # 本进程审批跳过集合（"Yes, and don't ask again this session for: X"）
         self._session_approval_skips: set[str] = set()
+        # 连续工具失败计数：避免 LLM 在反复 timeout 时陷入死循环（issue/bug3）
+        self._consecutive_tool_failures = 0
+        self._max_consecutive_tool_failures = 3
 
         # 子代理编排器：注入全局，供 delegate_subagents 工具使用
         self.subagent_orchestrator = SubAgentOrchestrator(
@@ -281,6 +284,8 @@ class AgentEngine:
                     timeout=self.tool_timeout,
                     max_retries=self.max_retries,
                 )
+                # 连续失败计数 + 阈值时注入 SYSTEM HINT（避免 LLM 死循环）
+                result = self._track_consecutive_tool_failures(result)
 
                 # 结果追加到消息
                 self.messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
@@ -509,6 +514,8 @@ class AgentEngine:
                     silent=True,
                 )
                 elapsed = time.time() - t0
+                # 连续失败计数 + 阈值时注入 SYSTEM HINT（避免 LLM 死循环）
+                result = self._track_consecutive_tool_failures(result)
 
                 # 结果追加到消息
                 self.messages.append({"role": "tool", "tool_call_id": tc_id, "content": result})
@@ -548,6 +555,41 @@ class AgentEngine:
         # A2: 自动提炼新技能
         self._maybe_extract_skill_after_run(final_text)
         return final_text
+
+    # 工具结果中表示「基础设施级失败」的前缀。命中即累加 _consecutive_tool_failures。
+    _TOOL_INFRA_FAIL_PREFIXES: tuple[str, ...] = (
+        "[TOOL_TIMEOUT]",
+        "[TOOL_ERROR]",
+        "[TOOL_NOT_FOUND]",
+    )
+
+    def _track_consecutive_tool_failures(self, result: str) -> str:
+        """识别基础设施级失败并维护连续失败计数；阈值时给 LLM 注入提示，避免死循环。
+
+        命中策略：仅 ``[TOOL_TIMEOUT]`` / ``[TOOL_ERROR]`` / ``[TOOL_NOT_FOUND]`` 前缀的
+        硬失败会累加。普通业务级失败串（404 / "用户拒绝" / "暂无网络记录" 等）不计入。
+
+        当连续失败次数达到阈值，本次返回值末尾会被追加 ``[SYSTEM HINT] ...`` 段，
+        提示 LLM 停止盲目重试同一思路、向用户说明问题并询问下一步。
+
+        返回（可能被增强的）result 字符串。
+        """
+        if any(result.startswith(p) for p in self._TOOL_INFRA_FAIL_PREFIXES):
+            self._consecutive_tool_failures += 1
+        else:
+            self._consecutive_tool_failures = 0
+
+        if self._consecutive_tool_failures >= self._max_consecutive_tool_failures:
+            hint = (
+                f"\n\n[SYSTEM HINT] 已连续 {self._consecutive_tool_failures} 次基础设施级"
+                f"工具失败（timeout / 异常）。请停止重试同一思路 — 用一两句话向用户简述"
+                f"遇到的问题（例如：浏览器异常、网络阻断、目标不可达），询问下一步意向，"
+                f"不要继续盲目调用工具。"
+            )
+            result = result + hint
+            # 注入 hint 后立即重置计数，避免每轮都拼接
+            self._consecutive_tool_failures = 0
+        return result
 
     async def _refresh_memory_block_after_tool(self, func_name: str, result: str) -> None:
         """issue #3.7：memory_manage 写入后，刷新 system prompt 的 MEMORY 块。
