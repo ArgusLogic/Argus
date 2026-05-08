@@ -27,14 +27,9 @@ def _load_custom_wordlist(kind: str) -> list[str] | None:
     import os
 
     try:
-        from utils.paths import CONFIG_PATH
+        from utils.config import get_section
 
-        if not os.path.exists(CONFIG_PATH):
-            return None
-        import toml
-
-        cfg = toml.load(CONFIG_PATH)
-        path = cfg.get("security", {}).get(kind, "")
+        path = get_section("security").get(kind, "")
         if not path:
             return None
         path = os.path.expanduser(path)

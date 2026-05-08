@@ -28,18 +28,12 @@ def _load_limit() -> int:
     if _default_limit is not None:
         return _default_limit
     try:
-        import os
+        from utils.config import get_section
 
-        from utils.paths import CONFIG_PATH
-
-        if os.path.exists(CONFIG_PATH):
-            import toml
-
-            cfg = toml.load(CONFIG_PATH)
-            n = cfg.get("security", {}).get("per_target_concurrency", 20)
-            if isinstance(n, int) and n > 0:
-                _default_limit = n
-                return n
+        n = get_section("security").get("per_target_concurrency", 20)
+        if isinstance(n, int) and n > 0:
+            _default_limit = n
+            return n
     except Exception:
         pass
     _default_limit = 20
@@ -51,6 +45,13 @@ def reset() -> None:
     global _default_limit
     _semaphores.clear()
     _default_limit = None
+    # issue #9：连带刷掉 utils.config 单例，否则改 CONFIG_PATH 后旧值仍生效
+    try:
+        from utils.config import reload as _reload
+
+        _reload()
+    except Exception:
+        pass
 
 
 @asynccontextmanager

@@ -6,7 +6,6 @@ import os
 import sys
 from typing import Any
 
-import toml
 from rich.table import Table
 
 from agent.engine import AgentEngine
@@ -22,24 +21,16 @@ registry.auto_discover("tools")
 
 
 def load_config() -> dict:
-    """加载配置文件。优先级：~/.argus/config.toml > 项目目录/config.toml"""
-    from utils.paths import CONFIG_PATH, SECAGENT_HOME
+    """加载配置文件。issue #9：委托给 utils.config 单例（带缓存）。"""
+    from utils.config import get_config
+    from utils.paths import CONFIG_PATH
 
-    # 优先读取 ~/.argus/config.toml
-    if os.path.exists(CONFIG_PATH):
-        with open(CONFIG_PATH, encoding="utf-8") as f:
-            return toml.load(f)
-
-    # 兼容旧路径：项目目录下的 config.toml
-    local_path = os.path.join(os.path.dirname(__file__), "config.toml")
-    if os.path.exists(local_path):
-        log_info(f"提示: 建议将 config.toml 迁移到 {SECAGENT_HOME}")
-        with open(local_path, encoding="utf-8") as f:
-            return toml.load(f)
-
-    log_error(f"配置文件不存在: {CONFIG_PATH}")
-    log_info(f"请将 config.example.toml 复制到 {CONFIG_PATH} 并填入 API Key")
-    sys.exit(1)
+    cfg = get_config()
+    if not cfg:
+        log_error(f"配置文件不存在: {CONFIG_PATH}")
+        log_info(f"请将 config.example.toml 复制到 {CONFIG_PATH} 并填入 API Key")
+        sys.exit(1)
+    return cfg
 
 
 # ─── Argus Panoptes Matrix（4 行宽幅版，照搬 React Ink 源） ─────────

@@ -92,7 +92,22 @@ def _isolate_argus_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
                 if hasattr(mod, attr):
                     monkeypatch.setattr(mod, attr, getattr(paths_mod, attr))
 
+    # issue #9：测试切换 CONFIG_PATH 后必须 flush utils.config 单例缓存
+    try:
+        from utils import config as _config_mod
+
+        _config_mod.reload()
+    except Exception:
+        pass
+
     yield home
+
+    try:
+        from utils import config as _config_mod
+
+        _config_mod.reload()
+    except Exception:
+        pass
 
 
 @pytest.fixture

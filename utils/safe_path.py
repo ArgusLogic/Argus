@@ -36,19 +36,15 @@ def _load_allowlist() -> dict[str, list[str]]:
         "read": [os.path.abspath(SECAGENT_HOME), os.path.abspath(os.getcwd())],
     }
     try:
-        from utils.paths import CONFIG_PATH
+        from utils.config import get_section
 
-        if os.path.exists(CONFIG_PATH):
-            import toml
-
-            cfg = toml.load(CONFIG_PATH)
-            sec = cfg.get("security", {}) or {}
-            for mode, key in (("write", "write_allowed_dirs"), ("read", "read_allowed_dirs")):
-                extras = sec.get(key, []) or []
-                if isinstance(extras, list):
-                    for p in extras:
-                        if isinstance(p, str) and p.strip():
-                            defaults[mode].append(os.path.abspath(os.path.expanduser(p)))
+        sec = get_section("security")
+        for mode, key in (("write", "write_allowed_dirs"), ("read", "read_allowed_dirs")):
+            extras = sec.get(key, []) or []
+            if isinstance(extras, list):
+                for p in extras:
+                    if isinstance(p, str) and p.strip():
+                        defaults[mode].append(os.path.abspath(os.path.expanduser(p)))
     except Exception:
         pass
 
@@ -60,6 +56,13 @@ def reset_cache() -> None:
     """测试用：清缓存以便重读 config。"""
     global _CACHE
     _CACHE = None
+    # issue #9：连带刷掉 utils.config 单例，否则改 CONFIG_PATH 后旧值仍生效
+    try:
+        from utils.config import reload as _reload
+
+        _reload()
+    except Exception:
+        pass
 
 
 def is_path_allowed(path: str, mode: str = "write") -> bool:

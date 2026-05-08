@@ -98,16 +98,11 @@ def _is_headed_from_config() -> bool:
     默认 False（服务器友好），避免无 XServer 环境崩溃。任何异常都退回 False。
     """
     try:
-        from utils.paths import CONFIG_PATH
+        from utils.config import get_section
 
-        if os.path.exists(CONFIG_PATH):
-            import toml
-
-            cfg = toml.load(CONFIG_PATH)
-            return bool(cfg.get("browser", {}).get("headed", False))
+        return bool(get_section("browser").get("headed", False))
     except Exception:
-        pass
-    return False
+        return False
 
 
 DEFAULT_USER_AGENT = (

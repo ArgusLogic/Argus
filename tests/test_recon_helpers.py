@@ -77,6 +77,16 @@ async def test_tcp_connect_scan_invalid_spec() -> None:
 # ─── #7: _load_custom_wordlist ──────────────────────────────────────────────
 
 
+@pytest.fixture(autouse=True)
+def _flush_config_cache():  # type: ignore[no-untyped-def]
+    """issue #9：每个测试前后强制重读 config，避免单例缓存污染。"""
+    from utils import config as _cfg
+
+    _cfg.reload()
+    yield
+    _cfg.reload()
+
+
 class TestLoadCustomWordlist:
     def test_no_config_returns_none(self, tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]
         monkeypatch.setattr("utils.paths.CONFIG_PATH", str(tmp_path / "no.toml"))
