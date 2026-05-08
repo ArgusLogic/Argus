@@ -45,6 +45,9 @@ class LLMClient:
         self._setup_api_keys(api_keys or {})
         # 关闭 litellm 自带日志，用我们自己的
         litellm.suppress_debug_info = True
+        # 自动丢弃当前 provider 不支持的参数（典型场景：reasoning_effort 在 thinking
+        # 模型与非 thinking 模型间切换时，避免 UnsupportedParamsError 把整个调用打挂）
+        litellm.drop_params = True
 
     def _setup_api_keys(self, keys: dict) -> None:
         """将配置中的 API Key 注入环境变量供 litellm 使用。"""

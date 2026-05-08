@@ -108,6 +108,23 @@ def test_main_model_picker_lists_mimo_v2_5() -> None:
     assert "xiaomi_mimo/mimo-v2.5-flash" in ids
 
 
+def test_llm_client_enables_drop_params(monkeypatch: pytest.MonkeyPatch) -> None:
+    """实例化 LLMClient 后 litellm.drop_params 必须为 True。
+
+    回归：用户在 thinking 模型（DeepSeek V4 Pro）切换到 MiMo Pro（走 OpenAI 兼容协议）
+    时，reasoning_effort=high 会被传给 OpenAI provider，OpenAI 不支持该参数会抛
+    UnsupportedParamsError 把整个 LLM 调用打挂。开 drop_params=True 让 LiteLLM 自动
+    丢弃 provider 不支持的参数。
+    """
+    import litellm
+    monkeypatch.setattr(litellm, "drop_params", False)
+    assert litellm.drop_params is False  # 改前
+
+    from agent.llm_client import LLMClient
+    LLMClient(model="deepseek/deepseek-v4-flash", api_keys={"deepseek": "x"})
+    assert litellm.drop_params is True  # 改后
+
+
 def test_litellm_routes_mimo_to_xiaomi_provider() -> None:
     """LiteLLM 必须能识别 xiaomi_mimo/ 前缀并指向官方 base_url。"""
     from litellm import get_llm_provider
