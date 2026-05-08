@@ -4,17 +4,23 @@
 
 ## 结果
 
-| 指标 | DeepSeek V4-Flash | Xiaomi MiMo V2.5-Pro |
-|---|---|---|
-| 耗时 | 52.6 s | 72.3 s |
-| LLM 轮数 | 5 | 6 |
-| Tool 调用成功率 | 4/4 | 4/4 |
-| token 总量 | ~33.75 K | ~33.96 K |
-| prompt cache hit | 0 | **192/256 首轮命中** |
-| 报告字数 | 3422 | 3488 |
-| 端点 | api.deepseek.com | token-plan-sgp.xiaomimimo.com/v1 |
-| 成本 | ~¥0.07 | **¥0（Token Plan 100T 免费）** |
-| wildcard DNS 检测 | ✅ 触发 | ✅ 触发（同一 bug 修复） |
+| 指标 | DeepSeek V4-Flash | MiMo V2.5-Pro | **MiMo V2.5** | MiMo V2.5-Flash |
+|---|---|---|---|---|
+| 耗时 | 52.6 s | 72.3 s | **39.3 s** ⚡ | — |
+| LLM 轮数 | 5 | 6 | 6 | — |
+| Tool 调用成功率 | 4/4 | 4/4 | 4/4 | — |
+| token 总量 | ~33.75 K | ~33.96 K | ~32.97 K | — |
+| prompt cache hit | 0 | 192/256 | — | — |
+| 报告字数 | 3422 | 3488 | — | — |
+| 端点 | api.deepseek.com | token-plan-sgp.xiaomimimo.com/v1 | 同左 | 同左 |
+| 成本 | ~¥0.07 | **¥0（Token Plan）** | **¥0（Token Plan）** | — |
+| wildcard DNS 修复触发 | ✅ | ✅ | ✅ | — |
+| Token Plan 可用 | N/A | ✅ | ✅ | ❌ `Not supported model` |
+
+### 速度亮点
+
+`mimo-v2.5` 39.3 s 是全场最快，比 V4-Flash 快 **25%**、比 V2.5-Pro 快 **46%**。
+—— V2.5 非 thinking/reasoning 模型，工具编排场景里反而比深度推理的 Pro 更高效。
 
 ## 观察
 

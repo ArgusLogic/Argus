@@ -174,25 +174,64 @@ async def _resolve_ips(sub: str, domain: str) -> list[str]:
 
 
 async def _detect_wildcard_ips(domain: str) -> set[str]:
-    """issue #20: 探测 DNS wildcard 记录。
+    """issue #20: 探测 DNS wildcard 记录，返回 CIDR 段集合。
 
-    用 3 个几乎不可能真实存在的随机子域探测，若它们都解析并且命中相同 IP 集合，
-    认为是 wildcard，把这些 IP 返回作为后续过滤集合。
-    无 wildcard 时返回空 set。
+    策略：
+    1. 3 个 'argus-nx-<hex>' 随机子域探测；≥2 个解析才认定 wildcard
+    2. 每个解析到的 IP，若落在 IANA/RFC 保留段（198.18.0.0/15 等）→
+       直接使用该保留段作为 wildcard 过滤范围（IANA 测试段里不可能有真服务）
+    3. 否则回退到 /24 段（覆盖 CDN 在单 /24 里 rotation 的常见场景）
+
+    返回空 set 代表无 wildcard。
     """
+    import ipaddress
+
     probes = [f"argus-nx-{secrets.token_hex(6)}" for _ in range(3)]
     results = await asyncio.gather(*(_resolve_ips(p, domain) for p in probes))
-    alive = [set(r) for r in results if r]
-    # 3 个随机子域里 ≥2 个都解析出 IP 且集合相同 → 判定 wildcard
+    alive = [r for r in results if r]
     if len(alive) < 2:
         return set()
-    first = alive[0]
-    if all(s == first for s in alive[1:]):
-        return first
-    # 退一步：如果 3 个都有解析但 IP 集合不稳定，仍取并集作为 wildcard pool
-    if len(alive) == 3:
-        return set().union(*alive)
-    return set()
+
+    cidrs: set[str] = set()
+    for ips in alive:
+        for ip in ips:
+            try:
+                addr = ipaddress.ip_address(ip)
+            except ValueError:
+                continue
+            # 2.a 命中保留段 → 扩展到整个保留段
+            reserved = _match_reserved_cidr(ip)
+            if reserved:
+                cidrs.add(reserved)
+                continue
+            # 2.b 否则 /24 (IPv4) / /64 (IPv6)
+            prefix = 24 if isinstance(addr, ipaddress.IPv4Address) else 64
+            cidrs.add(str(ipaddress.ip_network(f"{ip}/{prefix}", strict=False)))
+    return cidrs
+
+
+def _match_reserved_cidr(ip: str) -> str | None:
+    """若 ip 在 _RESERVED_NOTES 定义的保留段里，返回该段字符串。"""
+    for cidr, _note in _RESERVED_NOTES:
+        if _ip_in_cidr(ip, cidr):
+            return cidr
+    return None
+
+
+def _ip_in_any_cidr(ip: str, cidrs: set[str]) -> bool:
+    import ipaddress
+
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    for cidr in cidrs:
+        try:
+            if addr in ipaddress.ip_network(cidr):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 @registry.tool(
@@ -215,8 +254,8 @@ async def subdomain_enum(domain: str, concurrency: str = "20") -> str:
     # issue #7：优先用自定义字典
     wordlist = _load_custom_wordlist("subdomain_wordlist") or SUBDOMAINS
 
-    # issue #20：先探 wildcard，避免 2000/2000 假阳性
-    wildcard_ips = await _detect_wildcard_ips(domain)
+    # issue #20：先探 wildcard（返回 /24 CIDR 段，覆盖 CDN rotation）
+    wildcard_cidrs = await _detect_wildcard_ips(domain)
 
     async def check(sub: str) -> tuple[str, list[str]] | None:
         async with target_slot(domain), semaphore:
@@ -232,16 +271,16 @@ async def subdomain_enum(domain: str, concurrency: str = "20") -> str:
         if entry is None:
             continue
         sub, ips = entry
-        # 完全落在 wildcard IP 集合里 → 视为假阳性
-        if wildcard_ips and set(ips).issubset(wildcard_ips):
+        # 所有 IP 都落在 wildcard CIDR 段里 → 视为假阳性
+        if wildcard_cidrs and all(_ip_in_any_cidr(ip, wildcard_cidrs) for ip in ips):
             wildcard_hits += 1
             continue
         real_hits.append(f"{sub}.{domain} → {', '.join(ips)}")
 
     header_lines: list[str] = []
-    if wildcard_ips:
+    if wildcard_cidrs:
         header_lines.append(
-            f"⚠ 检测到 wildcard DNS (*.{domain} → {', '.join(sorted(wildcard_ips))})，"
+            f"⚠ 检测到 wildcard DNS (*.{domain} → {', '.join(sorted(wildcard_cidrs))})，"
             f"已过滤 {wildcard_hits} 条疑似假阳性"
         )
 

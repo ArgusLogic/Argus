@@ -17,16 +17,33 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_detect_wildcard_ips_positive() -> None:
-    """3 个随机子域都解析到同一组 IP → 判定 wildcard。"""
+async def test_detect_wildcard_ips_reserved_expands_to_full_range() -> None:
+    """wildcard IP 落在 IANA 保留段 → 返回完整保留 CIDR（非 /24）。"""
     from tools import recon
 
     async def fake_resolve(_sub: str, _domain: str) -> list[str]:
-        return ["198.18.0.4"]
+        return ["198.18.0.4"]  # 在 198.18.0.0/15 保留段里
 
     with patch.object(recon, "_resolve_ips", side_effect=fake_resolve):
-        ips = await recon._detect_wildcard_ips("example.com")
-    assert ips == {"198.18.0.4"}
+        cidrs = await recon._detect_wildcard_ips("example.com")
+    assert cidrs == {"198.18.0.0/15"}
+
+
+@pytest.mark.asyncio
+async def test_detect_wildcard_ips_public_ip_uses_slash24() -> None:
+    """wildcard IP 在公网段 → 回退到 /24。"""
+    from tools import recon
+
+    async def fake_resolve(_sub: str, _domain: str) -> list[str]:
+        return ["203.0.113.7"]  # 公网地址（实际也是 RFC5737 文档段，这里假装公网）
+
+    # 为了测 /24 路径，先 patch 掉保留段列表使匹配不到
+    with (
+        patch.object(recon, "_RESERVED_NOTES", ()),
+        patch.object(recon, "_resolve_ips", side_effect=fake_resolve),
+    ):
+        cidrs = await recon._detect_wildcard_ips("example.com")
+    assert cidrs == {"203.0.113.0/24"}
 
 
 @pytest.mark.asyncio
@@ -38,21 +55,45 @@ async def test_detect_wildcard_ips_negative() -> None:
         return []
 
     with patch.object(recon, "_resolve_ips", side_effect=fake_resolve):
-        ips = await recon._detect_wildcard_ips("nmap.org")
-    assert ips == set()
+        cidrs = await recon._detect_wildcard_ips("nmap.org")
+    assert cidrs == set()
+
+
+@pytest.mark.asyncio
+async def test_detect_wildcard_cloudflare_rotation_in_reserved() -> None:
+    """Cloudflare 式 rotation + IANA 保留段 → 整个保留段作为 wildcard 范围。"""
+    from tools import recon
+
+    call_count = {"n": 0}
+
+    async def fake_resolve(_sub: str, _domain: str) -> list[str]:
+        call_count["n"] += 1
+        return [f"198.18.24.{45 + call_count['n']}"]
+
+    with patch.object(recon, "_resolve_ips", side_effect=fake_resolve):
+        cidrs = await recon._detect_wildcard_ips("example.com")
+    # 全都在 198.18.0.0/15，优先用保留段
+    assert cidrs == {"198.18.0.0/15"}
+
+
+def test_match_reserved_cidr() -> None:
+    from tools.recon import _match_reserved_cidr
+
+    assert _match_reserved_cidr("198.18.47.1") == "198.18.0.0/15"
+    assert _match_reserved_cidr("10.0.0.1") == "10.0.0.0/8"
+    assert _match_reserved_cidr("8.8.8.8") is None
 
 
 @pytest.mark.asyncio
 async def test_subdomain_enum_filters_wildcard() -> None:
-    """wildcard 触发时，命中 wildcard IP 的条目被过滤，报告带警告。"""
+    """wildcard 触发时，命中 wildcard CIDR 的条目被过滤，报告带警告。"""
     from tools import recon
 
-    wildcard = {"198.18.0.4"}
+    cidrs = {"198.18.0.0/24"}
 
     async def fake_detect(_domain: str) -> set[str]:
-        return wildcard
+        return cidrs
 
-    # 模拟字典里每个词都解析到 wildcard IP
     async def fake_resolve(_sub: str, _domain: str) -> list[str]:
         return ["198.18.0.4"]
 
@@ -67,23 +108,47 @@ async def test_subdomain_enum_filters_wildcard() -> None:
 
     assert "wildcard DNS" in out
     assert "已过滤 3 条" in out
-    # 所有条目都被过滤 → 无存活子域
+    assert "未发现" in out
+
+
+@pytest.mark.asyncio
+async def test_subdomain_enum_filters_wildcard_with_rotation() -> None:
+    """Cloudflare 场景：枚举到的 IP 和 probe 不同但都在同一 /24 → 仍然过滤。"""
+    from tools import recon
+
+    cidrs = {"198.18.24.0/24"}  # probe 期间发现的 /24
+
+    async def fake_detect(_domain: str) -> set[str]:
+        return cidrs
+
+    async def fake_resolve(sub: str, _domain: str) -> list[str]:
+        # 字典条目返回 /24 段内的不同 IP（模拟 rotation）
+        return {"www": ["198.18.24.100"], "api": ["198.18.24.101"], "mail": ["198.18.24.102"]}[sub]
+
+    with (
+        patch.object(recon, "_detect_wildcard_ips", side_effect=fake_detect),
+        patch.object(recon, "_resolve_ips", side_effect=fake_resolve),
+        patch.object(recon, "SUBDOMAINS", ["www", "api", "mail"]),
+    ):
+        out = await recon.subdomain_enum("example.com", "3")
+
+    assert "已过滤 3 条" in out
     assert "未发现" in out
 
 
 @pytest.mark.asyncio
 async def test_subdomain_enum_keeps_real_hits_under_wildcard() -> None:
-    """wildcard 存在但部分子域解析到不同 IP → 这些应当保留。"""
+    """wildcard 存在但部分子域解析到不同 IP（非 wildcard /24）→ 这些应当保留。"""
     from tools import recon
 
-    wildcard = {"198.18.0.4"}
+    cidrs = {"198.18.0.0/24"}
 
     async def fake_detect(_domain: str) -> set[str]:
-        return wildcard
+        return cidrs
 
     async def fake_resolve(sub: str, _domain: str) -> list[str]:
         if sub == "www":
-            return ["93.184.216.34"]  # 真实 IP，非 wildcard
+            return ["93.184.216.34"]  # 完全不同网段
         return ["198.18.0.4"]
 
     small_list = ["www", "api", "mail"]
@@ -100,6 +165,16 @@ async def test_subdomain_enum_keeps_real_hits_under_wildcard() -> None:
     assert "www.example.com" in out
     assert "93.184.216.34" in out
     assert "发现 1/3" in out
+
+
+def test_ip_in_any_cidr_helper() -> None:
+    from tools.recon import _ip_in_any_cidr
+
+    assert _ip_in_any_cidr("198.18.24.49", {"198.18.24.0/24"})
+    assert not _ip_in_any_cidr("198.18.25.1", {"198.18.24.0/24"})
+    assert _ip_in_any_cidr("198.18.24.49", {"10.0.0.0/8", "198.18.24.0/24"})
+    assert not _ip_in_any_cidr("not-ip", {"198.18.24.0/24"})
+    assert not _ip_in_any_cidr("198.18.24.49", set())
 
 
 # ─────────────────────────────────────────────────────────────────────────
