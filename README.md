@@ -3,10 +3,26 @@
 [![CI](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml/badge.svg)](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-541%20passing-green.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-642%20passing-green.svg)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > 基于 LLM 的 CLI 自主侦察 Agent。一句自然语言任务，**44 个内置工具**全程自动调度——浏览器自动化、DevTools 抓包、JS 端点挖掘、SSE 流式捕获、子域名/目录枚举、端口扫描、请求重放，最终产出结构化 Markdown 报告。
+
+> 🎁 **看一眼效果**：[DVWA v1.10 完整侦察报告 (6 KB)](docs/demo-reports/dvwa-v1.10-scan.md) — 133 秒全自动跑完，Top-3 风险卡片 + ASCII 拓扑 + 目录敏感度分级 + LLM 建议。
+
+## 数据说话
+
+10 个公网生产域名顺序冷启冷扫（recon 模式，DeepSeek V4 Flash，2026-05-08）：
+
+| 指标 | 值 |
+|---|---|
+| 成功率 | **10 / 10** |
+| 平均耗时 | **77.7 s** / target |
+| 平均 token 消耗 | **5,718** |
+| 平均报告大小 | **5.0 KB** |
+| Top-3 风险卡片命中率 | **6 / 10** 报告含 ≥1 项风险 |
+
+完整明细见 [`docs/benchmarks/`](docs/benchmarks/)；运行：`python scripts/cold_smoke.py`。
 
 ## 亮点
 
@@ -18,11 +34,15 @@
 - **子代理并行** — `delegate_subagents` 同时打多个目标，主代理只看汇总
 - **自演化闭环** — success_count 自动增量、LESSONS 避坑库、自动提炼技能、skill curator、用户画像、跨会话 insights、agentskills.io 互操作
 - **一键侦察 CLI** — `python main.py -t example.com --mode {recon|scan|full}`，适合 CI / 定时任务
+- **报告执行摘要 Top-3** — 报告顶部自动生成风险卡片（🔴/🟠/🟡/🔵 四级），证据 + 建议一表呈现
+- **ASCII 拓扑图** — DNS + 端口 + 子域一张 tree，wildcard 假阳性自动标注
+- **`--doctor` 自检** — 启动前体检 14 项（Python / 依赖 / Playwright / nmap / API Key / 字典 / LLM ping），可视化 ✓ⓘ✗
 - **三层记忆架构** — ContextManager（单会话）/ SessionIndex（跨会话 FTS5）/ MemoryMD（MD 文件型主记忆），见 [`docs/architecture.md`](docs/architecture.md)
 - **统一 Config 单例** — 所有模块通过 `utils.config` 读 `~/.argus/config.toml`，进程级缓存
 - **per-target 限流** — 子域枚举/目录爆破多代理叠加时不击穿 WAF
+- **智能早停** — `dir_bruteforce` WAF 连击 / 不可达 / 60s 墙钟三重预算；`subdomain_enum` wildcard DNS 自动过滤
 - **Rust 加速骨架** — `argus_native` crate via PyO3，Python fallback 透明
-- **完整工程化** — ruff/mypy/pytest 全绿，**541 测试**，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
+- **完整工程化** — ruff/mypy/pytest 全绿，**642 测试**，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
 
 ## 快速开始
 
@@ -170,7 +190,7 @@ pip install target/wheels/*.whl
 ### 顶层参数
 
 ```
-python main.py [-y|--yolo] [-t|--target <url|domain> [--mode <recon|scan|full>]]
+python main.py [-y|--yolo] [-t|--target <url|domain> [--mode <recon|scan|full>]] [--doctor]
 ```
 
 | 参数 | 说明 |
@@ -178,6 +198,7 @@ python main.py [-y|--yolo] [-t|--target <url|domain> [--mode <recon|scan|full>]]
 | `--yolo` / `-y` | 启动即跳过审批（CI / 非交互终端用） |
 | `--target` / `-t` | 一次性侦察该目标，跑完即退出（自动 yolo） |
 | `--mode` | 侦察强度，配合 `--target`：`recon`（被动） / `scan`（中强度） / `full`（含浏览器爬取），默认 `recon` |
+| `--doctor` | 启动前体检（依赖 / Key / 字典 / Playwright / nmap / LLM ping）后退出，非零退出码代表有阻塞项 |
 
 ### 交互命令
 
@@ -329,7 +350,7 @@ Argus/
 ├── argus_native/                 # Rust crate（可选）
 │   ├── Cargo.toml
 │   └── src/{lib,sanitizer,memory}.rs
-├── tests/                        # 541 测试
+├── tests/                        # 642 测试
 └── .github/workflows/ci.yml      # lint + mypy + pytest matrix + Rust build
 ```
 
@@ -338,7 +359,7 @@ Argus/
 ### 测试
 
 ```bash
-make test                                 # 全部 541 测试
+make test                                 # 全部 642 测试
 pytest tests/test_browser_extras.py -v    # 单文件
 pytest --cov --cov-report=term            # 覆盖率
 ```

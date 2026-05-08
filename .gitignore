@@ -42,3 +42,6 @@ htmlcov/
 
 # scratch files for git commit messages
 _msg.txt
+
+# ad-hoc benchmark / scan logs（不提交）
+bench_*.log
