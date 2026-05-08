@@ -258,13 +258,20 @@ async def subdomain_enum(domain: str, concurrency: str = "20") -> str:
     # issue #20：先探 wildcard（返回 /24 CIDR 段，覆盖 CDN rotation）
     wildcard_cidrs = await _detect_wildcard_ips(domain)
 
+    # Day3-1: 进度上报（每 5% 一行）
+    from utils.progress import ProgressTracker
+
+    tracker = ProgressTracker(f"subdomain_enum {domain}", total=len(wordlist))
+
     async def check(sub: str) -> tuple[str, list[str]] | None:
         async with target_slot(domain), semaphore:
             ips = await _resolve_ips(sub, domain)
+            tracker.tick()
             return (sub, ips) if ips else None
 
     tasks = [check(sub) for sub in wordlist]
     raw = await asyncio.gather(*tasks)
+    tracker.done()
 
     real_hits: list[str] = []
     wildcard_hits = 0
@@ -386,6 +393,11 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
     loop = asyncio.get_event_loop()
     deadline = loop.time() + _DIR_WALL_BUDGET_S
 
+    # Day3-1: 进度上报
+    from utils.progress import ProgressTracker
+
+    tracker = ProgressTracker(f"dir_bruteforce {url}", total=len(wordlist))
+
     try:
         async with httpx.AsyncClient(
             timeout=_DIR_PER_REQUEST_TIMEOUT,
@@ -400,53 +412,58 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
                 if state["aborted_reason"] or loop.time() > deadline:
                     if not state["aborted_reason"]:
                         state["aborted_reason"] = "wall_budget"
+                    tracker.tick()
                     return
 
                 async with target_slot(url), semaphore:
-                    if state["aborted_reason"]:
-                        return
-                    target = f"{url}{path}"
                     try:
-                        resp = await client.get(target, follow_redirects=False)
-                    except Exception:
-                        state["error_streak"] += 1  # type: ignore[operator]
-                        if (
-                            state["error_streak"] >= _DIR_ERROR_STREAK  # type: ignore[operator]
-                            and not state["aborted_reason"]
-                        ):
-                            state["aborted_reason"] = "unreachable"
-                        return
+                        if state["aborted_reason"]:
+                            return
+                        target = f"{url}{path}"
+                        try:
+                            resp = await client.get(target, follow_redirects=False)
+                        except Exception:
+                            state["error_streak"] += 1  # type: ignore[operator]
+                            if (
+                                state["error_streak"] >= _DIR_ERROR_STREAK  # type: ignore[operator]
+                                and not state["aborted_reason"]
+                            ):
+                                state["aborted_reason"] = "unreachable"
+                            return
 
-                    # 请求成功 → 重置错误连击
-                    state["error_streak"] = 0
+                        # 请求成功 → 重置错误连击
+                        state["error_streak"] = 0
 
-                    # WAF / 限流连击检测
-                    if resp.status_code in (429, 503):
-                        state["rate_limit_streak"] += 1  # type: ignore[operator]
-                        if (
-                            state["rate_limit_streak"] >= _DIR_RATE_LIMIT_STREAK  # type: ignore[operator]
-                            and not state["aborted_reason"]
-                        ):
-                            state["aborted_reason"] = "rate_limited"
-                        return
-                    state["rate_limit_streak"] = 0
+                        # WAF / 限流连击检测
+                        if resp.status_code in (429, 503):
+                            state["rate_limit_streak"] += 1  # type: ignore[operator]
+                            if (
+                                state["rate_limit_streak"] >= _DIR_RATE_LIMIT_STREAK  # type: ignore[operator]
+                                and not state["aborted_reason"]
+                            ):
+                                state["aborted_reason"] = "rate_limited"
+                            return
+                        state["rate_limit_streak"] = 0
 
-                    # 基线匹配 → 假阳性，跳过
-                    if _is_baseline_match(resp, baseline):
-                        return
+                        # 基线匹配 → 假阳性，跳过
+                        if _is_baseline_match(resp, baseline):
+                            return
 
-                    # baseline 探测失败时退回老逻辑（status<404 全报）
-                    if not baseline.get("ok"):
-                        if resp.status_code < 404:
+                        # baseline 探测失败时退回老逻辑（status<404 全报）
+                        if not baseline.get("ok"):
+                            if resp.status_code < 404:
+                                found.append(f"  [{resp.status_code}] {path}  ({len(resp.content)} bytes)")
+                            return
+
+                        # 正常路径：状态码白名单内才算发现
+                        if resp.status_code in _DIR_HIT_CODES:
                             found.append(f"  [{resp.status_code}] {path}  ({len(resp.content)} bytes)")
-                        return
-
-                    # 正常路径：状态码白名单内才算发现
-                    if resp.status_code in _DIR_HIT_CODES:
-                        found.append(f"  [{resp.status_code}] {path}  ({len(resp.content)} bytes)")
+                    finally:
+                        tracker.tick()
 
             tasks = [check_path(path) for path in wordlist]
             await asyncio.gather(*tasks)
+            tracker.done()
     except Exception as e:
         return f"目录枚举失败: {e}"
 

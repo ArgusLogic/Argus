@@ -465,18 +465,26 @@ def _parse_cli_args() -> dict[str, Any]:
       --target / -t <url|domain>   : issue #8 一键侦察目标
       --mode <recon|scan|full>     : issue #8 侦察强度，默认 recon
       --model <id>                 : 覆盖 config 的 default_model（如 xiaomi_mimo/mimo-v2.5-pro）
+      --doctor                     : 仅运行体检（Day3-3）后退出
       --help / -h                  : 提示用法
     """
     from agent.recon_modes import VALID_MODES
 
-    args: dict[str, Any] = {"yolo": False, "target": None, "mode": "recon", "model": None}
+    args: dict[str, Any] = {
+        "yolo": False,
+        "target": None,
+        "mode": "recon",
+        "model": None,
+        "doctor": False,
+    }
     argv = sys.argv[1:]
     if any(a in ("--help", "-h") for a in argv):
-        print("用法: python main.py [--yolo|-y] [-t <target> [--mode <recon|scan|full>]] [--model <id>]")
+        print("用法: python main.py [--yolo|-y] [-t <target> [--mode <recon|scan|full>]] [--model <id>] [--doctor]")
         print("  --yolo, -y           启动即跳过审批（CI / 非交互终端）")
         print("  --target, -t URL     一次性侦察该目标，跑完即退出（issue #8）")
         print(f"  --mode MODE          侦察强度: {' | '.join(VALID_MODES)}（默认 recon）")
         print("  --model ID           覆盖 config.toml 的 default_model")
+        print("  --doctor             启动前体检（依赖 / key / 字典 / 路径）后退出")
         sys.exit(0)
 
     i = 0
@@ -509,6 +517,8 @@ def _parse_cli_args() -> dict[str, Any]:
                 sys.exit(2)
             args["model"] = argv[i + 1]
             i += 1
+        elif a == "--doctor":
+            args["doctor"] = True
         i += 1
 
     if args["mode"] != "recon" and args["target"] is None:
@@ -523,6 +533,13 @@ async def main() -> None:
 
     cli_args = _parse_cli_args()
     ensure_dirs()  # 确保 ~/.argus/ 目录结构存在
+
+    # Day3-3: --doctor 单独分支：跑完体检退出
+    if cli_args.get("doctor"):
+        from agent.doctor import run_doctor_async
+
+        ok = await run_doctor_async(ping_llm=True, silent_unless_failure=False)
+        sys.exit(0 if ok else 1)
 
     # 一次性迁移旧 SQLite 记忆到 MD 文件（无副作用，已迁移过会跳过）
     try:
