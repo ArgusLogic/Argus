@@ -72,6 +72,7 @@ def print_banner(model: str) -> None:
     info_lines = [
         f"[bold #e6edf3]Argus[/] [#7d8590]v0.1[/] [#484f58]·[/] [#7d8590]{model_short}[/]",
         f"[#7d8590]{n_tools} tools loaded[/] [#484f58]·[/] [#7d8590]/help[/] [#484f58]·[/] {native_tag}",
+        "[#7d8590]ESC 中断回复 · Ctrl+C 退出[/]",
         f"[#484f58]{cwd}[/]",
     ]
     info_group = Group(*[RichText.from_markup(line) for line in info_lines])
@@ -657,20 +658,51 @@ async def main() -> None:
                 break
             continue
 
-        # 正常任务：运行 Agent（流式渲染）
+        # 正常任务：运行 Agent（流式渲染）+ ESC 中断监听
         ui = None
         try:
             ui = LiveUI(console, model=engine.llm.model)
             ui.start()
-            await engine.run_stream(user_input, ui=ui)
-            # 累积统计
-            session_stats.add_turn(
-                engine.llm.model,
-                ui._input_tokens,
-                ui._output_tokens,
-                cache_hit=ui._cache_hit_tokens,
-                cache_miss=ui._cache_miss_tokens,
-            )
+
+            from utils.interrupt import EscInterruptListener
+
+            _loop = asyncio.get_event_loop()
+            _cancel_event = asyncio.Event()
+
+            def _on_esc(loop=_loop, ev=_cancel_event) -> None:  # type: ignore[no-untyped-def]
+                loop.call_soon_threadsafe(ev.set)
+
+            esc_listener = EscInterruptListener(on_press=_on_esc)
+            esc_listener.start()
+            run_task = asyncio.create_task(engine.run_stream(user_input, ui=ui))
+            cancel_task = asyncio.create_task(_cancel_event.wait())
+            try:
+                _done, _pending = await asyncio.wait(
+                    {run_task, cancel_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if _cancel_event.is_set() and not run_task.done():
+                    run_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await run_task
+                    if ui and ui._live:
+                        ui.stop()
+                    log_warning("已按 ESC 中断 — 上下文已保存，可继续对话")
+                else:
+                    # 自然完成：取消 cancel_task 释放资源
+                    cancel_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await cancel_task
+                    # 累积统计
+                    session_stats.add_turn(
+                        engine.llm.model,
+                        ui._input_tokens,
+                        ui._output_tokens,
+                        cache_hit=ui._cache_hit_tokens,
+                        cache_miss=ui._cache_miss_tokens,
+                    )
+            finally:
+                esc_listener.stop()
         except KeyboardInterrupt:
             if ui and ui._live:
                 ui.stop()

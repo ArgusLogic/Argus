@@ -1,6 +1,7 @@
 """Agent 核心循环引擎：LLM 推理 → 工具调用 → 结果回传 → 记忆/技能提炼。"""
 
 import asyncio
+import contextlib
 import json
 import time
 from typing import Any
@@ -300,7 +301,26 @@ class AgentEngine:
         Args:
             user_input: 用户输入
             ui: LiveUI 实例，提供 set_thinking/append_text/add_tool_call 等方法
+
+        被外部 cancel（如用户按 ESC）时：
+          - 把已收到的部分文本 + 占位 assistant 消息追加到 messages，保持对话状态一致
+          - 停掉 UI Live 渲染
+          - re-raise CancelledError 让调用方知道是中断而非正常完成
         """
+        try:
+            return await self._run_stream_impl(user_input, ui=ui)
+        except asyncio.CancelledError:
+            # 保持 messages 一致：若最后一条是 user 而无对应 assistant，补一条占位
+            if self.messages and self.messages[-1].get("role") == "user":
+                self.messages.append({"role": "assistant", "content": "[用户按 ESC 中断]"})
+            if ui is not None:
+                with contextlib.suppress(Exception):
+                    if getattr(ui, "_live", None):
+                        ui.stop()
+            raise
+
+    async def _run_stream_impl(self, user_input: str, ui=None) -> str:
+        """实际流式实现。"""
 
         # 冻结注入：system prompt 只在首轮构建，后续轮不重建（保 prefix cache）
         if not self._memory_injected:
