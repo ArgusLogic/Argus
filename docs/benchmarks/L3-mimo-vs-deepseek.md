@@ -4,23 +4,25 @@
 
 ## 结果
 
-| 指标 | DeepSeek V4-Flash | MiMo V2.5-Pro | **MiMo V2.5** | MiMo V2.5-Flash |
-|---|---|---|---|---|
-| 耗时 | 52.6 s | 72.3 s | **39.3 s** ⚡ | — |
-| LLM 轮数 | 5 | 6 | 6 | — |
-| Tool 调用成功率 | 4/4 | 4/4 | 4/4 | — |
-| token 总量 | ~33.75 K | ~33.96 K | ~32.97 K | — |
-| prompt cache hit | 0 | 192/256 | — | — |
-| 报告字数 | 3422 | 3488 | — | — |
-| 端点 | api.deepseek.com | token-plan-sgp.xiaomimimo.com/v1 | 同左 | 同左 |
-| 成本 | ~¥0.07 | **¥0（Token Plan）** | **¥0（Token Plan）** | — |
-| wildcard DNS 修复触发 | ✅ | ✅ | ✅ | — |
-| Token Plan 可用 | N/A | ✅ | ✅ | ❌ `Not supported model` |
+| 指标 | V4-Flash | **V4-Pro** | MiMo V2.5-Pro | **MiMo V2.5** | V2.5-Flash |
+|---|---|---|---|---|---|
+| 耗时 | 52.6 s | 81.4 s | 72.3 s | **39.3 s** ⚡ | — |
+| LLM 轮数 | 5 | **3** ⭐ | 6 | 6 | — |
+| Tool 调用成功率 | 4/4 | 4/4 | 4/4 | 4/4 | — |
+| token 总量 | ~33.75 K | **~4.61 K** 🏆 | ~33.96 K | ~32.97 K | — |
+| prompt cache hit | 0 | 0 | 192/256 | — | — |
+| 报告字数 | 3422 | 3806 | 3488 | — | — |
+| 端点 | api.deepseek.com | 同左 | token-plan-sgp.xiaomimimo.com/v1 | 同左 | 同左 |
+| 成本 (单次) | ~¥0.07 | **~¥0.03** | **¥0（Token Plan）** | **¥0** | — |
+| wildcard 过滤触发 | ✅ | ✅ | ✅ | ✅ | — |
+| Token Plan 可用 | N/A | N/A | ✅ | ✅ | ❌ |
 
-### 速度亮点
+### 关键观察
 
-`mimo-v2.5` 39.3 s 是全场最快，比 V4-Flash 快 **25%**、比 V2.5-Pro 快 **46%**。
-—— V2.5 非 thinking/reasoning 模型，工具编排场景里反而比深度推理的 Pro 更高效。
+1. **V4-Pro 的 token 效率最强**（4.61K vs 33K+）：能**并行调用**多个工具 (dns+whois+headers+subdomain) 一轮拿到所有数据，而其他模型串行调；这是 tool-calling scheduler 差异，不是模型能力差距。
+2. **MiMo V2.5 速度最快**（39.3s），因为非推理模型、流式响应短。
+3. **V4-Pro 报告最长**（3806 字），但因 wildcard 过滤干净，只陈述"wildcard 导致无有效枚举"一句话，而非 Flash 那种 3000 字的子域列表灌水。
+4. **V4-Pro 成本反而最低**：虽单价贵 3x，但 tokens 少 7x，单次任务成本 ¥0.03 < V4-Flash ¥0.07。**tool-parallel 是降本的关键**。
 
 ## 观察
 
