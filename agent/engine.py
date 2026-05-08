@@ -78,6 +78,11 @@ TOOL_RISK_LEVELS: dict[str, str] = {
     "dir_bruteforce": "block",
     "port_scan": "block",
     "system_exec": "block",
+    # 漏洞探测：仅授权目标可用（工具内部 is_authorized_target 二次守门）
+    "vuln_sqli_timing": "block",
+    "vuln_xss_reflection": "block",
+    "vuln_open_redirect": "block",
+    "vuln_cors_misconfig": "block",
 }
 
 BLOCK_RISK_HINTS: dict[str, str] = {
@@ -85,6 +90,10 @@ BLOCK_RISK_HINTS: dict[str, str] = {
     "dir_bruteforce": "将对目标发起大量 HTTP 请求进行路径枚举",
     "port_scan": "将对目标主机进行端口扫描（需本地安装 nmap）",
     "system_exec": "将在本机执行 shell 命令；即便有白名单也请仔细核对参数",
+    "vuln_sqli_timing": "将向目标发送含 SQLi payload 的请求（仅授权渗透测试），目标 IDS/WAF 会记录",
+    "vuln_xss_reflection": "将向目标发送含 XSS probe 的请求（仅授权渗透测试），目标 IDS/WAF 会记录",
+    "vuln_open_redirect": "将向目标发送外域 URL 探针（仅授权渗透测试），目标日志会记录",
+    "vuln_cors_misconfig": "将以任意 Origin 头请求目标 API（仅授权渗透测试），目标日志会记录",
 }
 
 
