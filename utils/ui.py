@@ -106,15 +106,57 @@ def create_prompt_session() -> PromptSession:
     )
 
 
+# Rich 用普通色名；prompt_toolkit 用 ansiXxx — 两套都需要
+MODE_COLORS: dict[str, str] = {"agent": "cyan", "plan": "yellow", "yolo": "red"}
+MODE_ANSI_COLORS: dict[str, str] = {"agent": "ansicyan", "plan": "ansiyellow", "yolo": "ansired"}
+
+
 def get_prompt_text(model: str = "", mode: str = "agent") -> HTML:
     """构建极简输入提示符（Claude Code 风格）。"""
     model_short = model.split("/")[-1] if "/" in model else model
-    mode_colors = {"agent": "ansicyan", "plan": "ansiyellow", "yolo": "ansired"}
-    color = mode_colors.get(mode, "ansicyan")
+    color = MODE_ANSI_COLORS.get(mode, "ansicyan")
     mode_tag = "" if mode == "agent" else f'<style fg="{color}">[{mode}]</style> '
     return HTML(
         f'\n{mode_tag}<style fg="ansibrightblack">{model_short}</style> <b><style fg="{color}">› </style></b>'
     )
+
+
+def print_user_message(
+    text: str, mode: str = "agent", target_console: Console | None = None
+) -> None:
+    """把用户输入回显成左竖线高亮块（Claude Code 风格 + DeepSeek-TUI mode 色彩）。
+
+    左竖线颜色随 mode 变化（agent=cyan / plan=yellow / yolo=red），强化模式视觉一致性。
+    """
+    from rich.padding import Padding
+
+    c = target_console or console
+    color = MODE_COLORS.get(mode, "cyan")
+    bar = Text("▎", style=f"{color} bold")
+    body = Text(text.strip(), style="bright_white")
+    c.print(Padding(Columns([bar, body], padding=(0, 1)), (1, 0, 0, 0)))
+
+
+def print_startup_hint(target_console: Console | None = None, mode: str = "agent") -> None:
+    """启动 banner 之后打印一行键位 / 模式提示（Claude Code + DeepSeek-TUI 风格）。"""
+    c = target_console or console
+    color = MODE_COLORS.get(mode, "cyan")
+    line = Text.assemble(
+        ("  [", "dim"),
+        (mode, f"dim {color}"),
+        ("] · ", "dim"),
+        ("Esc", "dim bold"),
+        (" to interrupt · ", "dim"),
+        ("/help", "dim cyan"),
+        (" · ", "dim"),
+        ("/yolo", "dim red"),
+        (" · ", "dim"),
+        ("/effort", "dim cyan"),
+        (" · ", "dim"),
+        ("/cost", "dim cyan"),
+    )
+    c.print(line)
+    c.print()
 
 
 # ─── 核心 UI 渲染器 ──────────────────────────────────────────────────────────
@@ -159,6 +201,8 @@ class LiveUI:
 
     def stop(self) -> None:
         """结束 Live 渲染，输出最终静态内容。"""
+        from rich.rule import Rule
+
         if self._live:
             self._live.stop()
             self._live = None
@@ -167,25 +211,20 @@ class LiveUI:
         for section in self._completed_sections:
             self._console.print(section)
 
-        # 输出 thinking 崩缩为单行总结（Claude Code 风格）
+        # 输出 thinking 崩缩为单行总结（Claude Code 风格：Crunched for Xs，无 chars 数）
         if self._thinking_buffer.strip():
             think_elapsed = time.time() - self._start_time
-            think_chars = len(self._thinking_buffer)
             self._console.print(
-                Text(f"※ Thought for {think_elapsed:.1f}s ({think_chars} chars)", style="dim")
+                Text(f"※ Crunched for {think_elapsed:.0f}s", style="dim")
             )
 
-        # 输出最终回复（无面板，前缀 ●）
+        # 输出最终回复（纯 Markdown，无 ● 前缀以避免 Columns 错位）
         if self._text_buffer.strip():
-            self._console.print(Text("●", style="bold cyan"), end=" ")
             self._console.print(Markdown(self._text_buffer.strip()))
 
-        # 输出统计
-        elapsed = time.time() - self._start_time
-        stats = self._build_stats(elapsed)
-        if stats:
-            self._console.print(stats)
-            self._console.print()
+        # 每轮间淡灰水平线分隔（Claude Code 风格）
+        # 每轮 tokens / ¥ 行已隐藏，仅 /cost 命令显示累计统计
+        self._console.print(Rule(style="dim"))
 
     # ─── 阶段切换 ─────────────────────────────────────────────────────────
 
@@ -315,14 +354,14 @@ class LiveUI:
                 parts.append(Text(tail, style="dim italic"))
             renderables.extend(parts)
 
-        # 流式文本（无面板，前缀 ●）
+        # 流式文本（纯 Markdown，无 ● 前缀）
         elif self._phase == "streaming" and self._text_buffer.strip():
             try:
                 lines = self._text_buffer.strip().split("\n")
                 max_live_lines = 20
                 if len(lines) > max_live_lines:
                     tail = "\n".join(lines[-max_live_lines:])
-                    renderables.append(Text(f"  ... ({len(lines) - max_live_lines} 行之上)", style="dim"))
+                    renderables.append(Text("  ⋯", style="dim"))
                 else:
                     tail = "\n".join(lines)
                 renderables.append(_render_inline_reply(tail))
@@ -401,76 +440,74 @@ class SessionStats:
 
 
 def _render_inline_reply(text: str):
-    """渲染 Agent 回复为无面板、前缀 ● 的内联样式（Claude Code 风格）。"""
-    from rich.console import Group as _Group
-
-    bullet = Text("● ", style="bold cyan")
-    md = Markdown(text)
-    # 将 ● 与 markdown 通过 Columns 拼在同一缩进下
-    return _Group(
-        Columns([bullet, md], padding=(0, 0), expand=False),
-    )
+    """渲染 Agent 回复为纯 Markdown（Claude Code 风格——去掉 ● 避免 Columns 错位）。"""
+    return Markdown(text)
 
 
 def _render_tool_call_live(tc: ToolCallDisplay):
-    """渲染正在执行的工具调用（带 spinner）。"""
+    """渲染正在执行的工具调用（带 spinner，Panel 包裹）。"""
+    from rich.box import ROUNDED
+    from rich.panel import Panel
+
     elapsed = time.time() - tc.start_time
     args_preview = _format_args(tc.args_str)
 
-    content = Text.assemble(
-        ("  ⚡ ", "bold yellow"),
+    header = Text.assemble(
+        ("⚡ ", "yellow"),
         (tc.name, "bold green"),
         (f"({args_preview})", "dim"),
     )
-
     spinner_line = Columns(
         [
-            Text("  ┃ ", style="dim"),
             Spinner("dots", style="yellow"),
             Text(f" running... ({elapsed:.1f}s)", style="dim yellow"),
         ],
         padding=(0, 0),
     )
-
-    return Group(content, spinner_line)
+    return Panel(
+        Group(header, spinner_line),
+        box=ROUNDED,
+        border_style="yellow",
+        padding=(0, 1),
+        expand=False,
+    )
 
 
 def _render_tool_call(tc: ToolCallDisplay):
-    """渲染已完成的工具调用。"""
+    """渲染已完成的工具调用：成功默认折叠成单行 Panel；失败展开多行 Panel。"""
+    from rich.box import ROUNDED
+    from rich.panel import Panel
+
     args_preview = _format_args(tc.args_str)
 
+    # 成功路径：单行 Panel（DeepSeek-TUI 风格折叠）
     if tc.status == "done":
-        status_icon = "✓"
-        status_style = "bold green"
-        status_word = "done"
-    else:
-        status_icon = "✗"
-        status_style = "bold red"
-        status_word = "failed"
+        one_line = Text.assemble(
+            ("⚡ ", "yellow"),
+            (tc.name, "bold green"),
+            (f"({args_preview})", "dim"),
+            ("  ✓ ", "bold green"),
+            (f"{tc.elapsed:.1f}s", "dim"),
+        )
+        return Panel(one_line, box=ROUNDED, border_style="dim green", padding=(0, 1), expand=False)
 
+    # 失败路径：展开 Panel，含错误预览
     header = Text.assemble(
-        ("  ⚡ ", "bold yellow"),
-        (tc.name, "bold green"),
+        ("⚡ ", "yellow"),
+        (tc.name, "bold red"),
         (f"({args_preview})", "dim"),
     )
-
     status_line = Text.assemble(
-        ("  ┃ ", "dim"),
-        (f"{status_icon} ", status_style),
-        (f"{status_word} ({tc.elapsed:.1f}s)", "dim"),
+        ("✗ ", "bold red"),
+        (f"failed ({tc.elapsed:.1f}s)", "dim"),
     )
-
-    lines = [header, status_line]
-
+    lines: list = [header, status_line]
     if tc.result_preview:
         for line in tc.result_preview.split("\n"):
-            result_line = Text.assemble(
-                ("  ┃ ", "dim"),
-                (line, "dim"),
-            )
-            lines.append(result_line)
-
-    return Group(*lines)
+            lines.append(Text(line, style="dim red"))
+    return Panel(
+        Group(*lines), box=ROUNDED, border_style="red", padding=(0, 1), expand=False
+    )
 
 
 def _format_args(args_str: str) -> str:

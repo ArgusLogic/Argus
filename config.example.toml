@@ -25,6 +25,10 @@ log_to_file = true
 #   gpt-5.4-mini:      400K   →  context_max_tokens = 400000
 #   claude-sonnet-4-6: 200K   →  context_max_tokens = 200000
 context_max_tokens = 128000
+# ── 默认工作区（Argus 启动时切到此目录）─────────────────────────────────────
+# 不配置则用 ~/.argus/workspace/。CLI --workspace <path> 优先级最高。
+# 适合为不同项目准备独立工作区，便于 LLM 写文件 / 临时 PoC / 笔记 收敛。
+# workspace = "~/projects/pentest-2026"
 
 [api_keys]
 # 至少填一个。支持 DeepSeek / OpenAI / Anthropic / Xiaomi MiMo。

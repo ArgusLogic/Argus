@@ -14,7 +14,14 @@ from agent.llm_client import LLMClient
 from agent.session import delete_session, list_sessions, load_session, save_session
 from agent.tool_registry import registry
 from utils.logger import console, file_logger, log_error, log_info, log_warning
-from utils.ui import LiveUI, SessionStats, create_prompt_session, get_prompt_text
+from utils.ui import (
+    LiveUI,
+    SessionStats,
+    create_prompt_session,
+    get_prompt_text,
+    print_startup_hint,
+    print_user_message,
+)
 
 # 自动发现并注册 tools/ 下的所有工具
 registry.auto_discover("tools")
@@ -465,6 +472,7 @@ def _parse_cli_args() -> dict[str, Any]:
       --target / -t <url|domain>   : issue #8 一键侦察目标
       --mode <recon|scan|full>     : issue #8 侦察强度，默认 recon
       --model <id>                 : 覆盖 config 的 default_model（如 xiaomi_mimo/mimo-v2.5-pro）
+      --workspace / -w <path>      : 工作目录（默认 ~/.argus/workspace/）
       --doctor                     : 仅运行体检（Day3-3）后退出
       --help / -h                  : 提示用法
     """
@@ -476,6 +484,7 @@ def _parse_cli_args() -> dict[str, Any]:
         "mode": "recon",
         "model": None,
         "doctor": False,
+        "workspace": None,
     }
     argv = sys.argv[1:]
     if any(a in ("--help", "-h") for a in argv):
@@ -484,6 +493,7 @@ def _parse_cli_args() -> dict[str, Any]:
         print("  --target, -t URL     一次性侦察该目标，跑完即退出（issue #8）")
         print(f"  --mode MODE          侦察强度: {' | '.join(VALID_MODES)}（默认 recon）")
         print("  --model ID           覆盖 config.toml 的 default_model")
+        print("  --workspace, -w PATH 工作目录（默认 ~/.argus/workspace/）")
         print("  --doctor             启动前体检（依赖 / key / 字典 / 路径）后退出")
         sys.exit(0)
 
@@ -516,6 +526,12 @@ def _parse_cli_args() -> dict[str, Any]:
                 print("错误: --model 需要参数", file=sys.stderr)
                 sys.exit(2)
             args["model"] = argv[i + 1]
+            i += 1
+        elif a in ("--workspace", "-w"):
+            if i + 1 >= len(argv):
+                print("错误: --workspace/-w 需要参数", file=sys.stderr)
+                sys.exit(2)
+            args["workspace"] = argv[i + 1]
             i += 1
         elif a == "--doctor":
             args["doctor"] = True
@@ -554,6 +570,21 @@ async def main() -> None:
     general = config.get("general", {})
     model = cli_args.get("model") or general.get("default_model", "deepseek/deepseek-chat")
     approval_mode = general.get("approval_mode", True)
+
+    # 解析并切换默认工作区（CLI > config.general.workspace > ~/.argus/workspace/）
+    # 必须在工具首次调用 / safe_path 缓存白名单之前 chdir，否则旧 cwd 会被缓存进白名单
+    from utils.paths import WORKSPACE_DIR
+
+    workspace_raw = (
+        cli_args.get("workspace") or general.get("workspace") or WORKSPACE_DIR
+    )
+    workspace = os.path.abspath(os.path.expanduser(workspace_raw))
+    try:
+        os.makedirs(workspace, exist_ok=True)
+        os.chdir(workspace)
+        log_info(f"workspace: {workspace}")
+    except Exception as e:
+        log_warning(f"切换 workspace 失败，沿用 cwd={os.getcwd()}: {e}")
 
     # CLI --yolo / --target / stdin 非 TTY：自动跳过审批，避免卡死（issue #6 / #8）
     is_non_tty = not sys.stdin.isatty()
@@ -616,6 +647,9 @@ async def main() -> None:
     )
 
     print_banner(model)
+    # 启动 hint：mode + 键位提示（DeepSeek-TUI 风格）
+    _startup_mode = "yolo" if not approval_mode else "agent"
+    print_startup_hint(console, mode=_startup_mode)
 
     # issue #8：一键侦察模式 —— 跑完 prompt 即退出，不进入 REPL
     if cli_args.get("target"):
@@ -653,6 +687,10 @@ async def main() -> None:
 
             user_input = await asyncio.get_event_loop().run_in_executor(None, _read_prompt)
             user_input = user_input.strip()
+            # 用户输入回显为左竖线块（mode 色彩贯穿）
+            if user_input and not user_input.startswith("/"):
+                _msg_mode = "yolo" if not engine.approval_mode else "agent"
+                print_user_message(user_input, mode=_msg_mode, target_console=console)
         except (EOFError, KeyboardInterrupt):
             console.print("\n再见！")
             break

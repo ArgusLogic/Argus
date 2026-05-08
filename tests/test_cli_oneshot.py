@@ -75,7 +75,7 @@ class TestParseCliArgs:
 
     def test_default_no_args(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
         out = self._parse()
-        assert out == {"yolo": False, "target": None, "mode": "recon", "model": None, "doctor": False}
+        assert out == {"yolo": False, "target": None, "mode": "recon", "model": None, "doctor": False, "workspace": None}
 
     def test_yolo_short(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
         out = self._parse("-y")
@@ -119,6 +119,19 @@ class TestParseCliArgs:
     def test_mode_without_value_exits(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
         with pytest.raises(SystemExit) as ei:
             self._parse("--mode")
+        assert ei.value.code == 2
+
+    def test_workspace_long(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
+        out = self._parse("--workspace", "/tmp/argus-test")
+        assert out["workspace"] == "/tmp/argus-test"
+
+    def test_workspace_short(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
+        out = self._parse("-w", "./scratch")
+        assert out["workspace"] == "./scratch"
+
+    def test_workspace_without_value_exits(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
+        with pytest.raises(SystemExit) as ei:
+            self._parse("-w")
         assert ei.value.code == 2
 
     def test_help_exits_zero(self, restore_argv) -> None:  # type: ignore[no-untyped-def]
