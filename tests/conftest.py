@@ -73,7 +73,8 @@ def _isolate_argus_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iter
         "agent.memory_md",
         "agent.skills",
         "agent.session",
-        "agent.memory",
+        "agent.memory",  # legacy shim（issue #10）
+        "agent.session_index",
         "agent.curator",
     ):
         if mod_name in sys.modules:

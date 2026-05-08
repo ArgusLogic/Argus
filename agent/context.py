@@ -1,4 +1,11 @@
-"""上下文管理：token 计数与自动压缩（支持 LLM 智能摘要）。"""
+"""单次会话内的对话历史管理：token 计数 + 自动压缩（含 LLM 摘要）。
+
+注意此模块**不**保存任何跨会话状态。三层记忆架构详见 `docs/architecture.md`：
+
+  - ContextManager (this file)        : 单会话对话历史，进程结束即丢
+  - SessionIndex   (session_index.py) : 跨会话 SQLite/FTS5 倒排索引
+  - MemoryMD       (memory_md.py)     : LLM 主动维护的 MD 文件型记忆
+"""
 
 import tiktoken
 

@@ -8,9 +8,9 @@ from urllib.parse import urlparse
 
 from agent.context import ContextManager
 from agent.llm_client import LLMClient
-from agent.memory import MemoryStore
 from agent.memory_md import MemoryMD
 from agent.prompts import SYSTEM_PROMPT, PromptBuilder
+from agent.session_index import SessionIndex
 from agent.skills import SkillManager
 from agent.subagent import SubAgentOrchestrator, set_global_orchestrator
 from agent.tool_registry import ToolRegistry
@@ -124,7 +124,8 @@ class AgentEngine:
         self.track_failure_replays = track_failure_replays
         self.context = ContextManager(max_tokens=context_max_tokens)
         self.context.set_llm(llm)
-        self.memory = MemoryStore()  # 保留：作为 session_search FTS5 后端
+        # session_search FTS5 后端（issue #10：原名 MemoryStore，已 rename）
+        self.session_index = SessionIndex()
         self.memory_md = MemoryMD()  # 新：MD 文件式持久记忆（agent 主动管）
         self.skills = SkillManager()
         self.prompt_builder = PromptBuilder()

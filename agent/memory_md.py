@@ -1,4 +1,4 @@
-"""MD 文件式持久记忆（Hermes 风格）。
+"""MD 文件式持久记忆（Hermes 风格）—— 三层记忆架构详见 `docs/architecture.md`。
 
 两个文件：
 - MEMORY.md  — Agent 的工作笔记（环境事实、项目惯例、踩坑、任务日志）
