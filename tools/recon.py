@@ -212,7 +212,8 @@ async def _detect_wildcard_ips(domain: str) -> set[str]:
 
 def _match_reserved_cidr(ip: str) -> str | None:
     """若 ip 在 _RESERVED_NOTES 定义的保留段里，返回该段字符串。"""
-    for cidr, _note in _RESERVED_NOTES:
+    for entry in _RESERVED_NOTES:
+        cidr = entry[0]
         if _ip_in_cidr(ip, cidr):
             return cidr
     return None
@@ -347,6 +348,13 @@ def _is_baseline_match(resp: httpx.Response, baseline: dict) -> bool:
     return bool(base_size is not None and abs(len(resp.content) - base_size) < 32)
 
 
+# Day1-1: 自适应预算 & WAF 早停阈值（issue #21）
+_DIR_WALL_BUDGET_S: float = 30.0  # 墙钟硬预算（秒）；超过后返回已有命中
+_DIR_RATE_LIMIT_STREAK: int = 8  # 连续 N 次 429/503 视为 WAF 触发
+_DIR_ERROR_STREAK: int = 20  # 连续 N 次 exception 视为目标不可达
+_DIR_PER_REQUEST_TIMEOUT: float = 5.0  # 单次请求 timeout（旧默认 10s）
+
+
 @registry.tool(
     name="dir_bruteforce",
     description="对目标 URL 进行目录/路径枚举，发现隐藏路径和敏感文件",
@@ -363,15 +371,24 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
     url = sanitize_url(url).rstrip("/")
     max_concurrent = int(concurrency)
     semaphore = asyncio.Semaphore(max_concurrent)
-    found = []
+    found: list[str] = []
 
     # issue #7：优先用自定义字典；条目自动补 / 前缀
     raw_wordlist = _load_custom_wordlist("directory_wordlist") or DIRECTORIES
     wordlist = [p if p.startswith("/") else "/" + p for p in raw_wordlist]
 
+    # Day1-1: 运行时状态监测（WAF / 不可达早停）
+    state = {
+        "rate_limit_streak": 0,
+        "error_streak": 0,
+        "aborted_reason": "",  # 空=正常；非空=触发早停
+    }
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + _DIR_WALL_BUDGET_S
+
     try:
         async with httpx.AsyncClient(
-            timeout=10.0,
+            timeout=_DIR_PER_REQUEST_TIMEOUT,
             verify=False,
             headers={"User-Agent": "Mozilla/5.0 Argus/0.1"},
         ) as client:
@@ -379,12 +396,40 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
             baseline = await _probe_baseline(client, url)
 
             async def check_path(path: str) -> None:
+                # 墙钟 / 早停检查：直接跳过剩余任务
+                if state["aborted_reason"] or loop.time() > deadline:
+                    if not state["aborted_reason"]:
+                        state["aborted_reason"] = "wall_budget"
+                    return
+
                 async with target_slot(url), semaphore:
+                    if state["aborted_reason"]:
+                        return
                     target = f"{url}{path}"
                     try:
                         resp = await client.get(target, follow_redirects=False)
                     except Exception:
+                        state["error_streak"] += 1  # type: ignore[operator]
+                        if (
+                            state["error_streak"] >= _DIR_ERROR_STREAK  # type: ignore[operator]
+                            and not state["aborted_reason"]
+                        ):
+                            state["aborted_reason"] = "unreachable"
                         return
+
+                    # 请求成功 → 重置错误连击
+                    state["error_streak"] = 0
+
+                    # WAF / 限流连击检测
+                    if resp.status_code in (429, 503):
+                        state["rate_limit_streak"] += 1  # type: ignore[operator]
+                        if (
+                            state["rate_limit_streak"] >= _DIR_RATE_LIMIT_STREAK  # type: ignore[operator]
+                            and not state["aborted_reason"]
+                        ):
+                            state["aborted_reason"] = "rate_limited"
+                        return
+                    state["rate_limit_streak"] = 0
 
                     # 基线匹配 → 假阳性，跳过
                     if _is_baseline_match(resp, baseline):
@@ -405,13 +450,29 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
     except Exception as e:
         return f"目录枚举失败: {e}"
 
-    # issue #17：全站重定向警告头
-    header_lines = []
+    # 汇总头部：基线 + 早停原因
+    header_lines: list[str] = []
     if baseline.get("ok") and baseline["codes"] and all(300 <= c < 400 for c in baseline["codes"]):
         codes_str = ",".join(str(c) for c in sorted(baseline["codes"]))
         header_lines.append(f"⚠ 目标疑似全站重定向（baseline 状态码 {codes_str}），结果已按基线过滤")
     elif not baseline.get("ok"):
         header_lines.append("⚠ baseline 探测失败，已退回宽松判定（status<404 全报）")
+
+    reason = state["aborted_reason"]
+    if reason == "wall_budget":
+        header_lines.append(
+            f"⏱ 达到 {_DIR_WALL_BUDGET_S:.0f}s 墙钟预算，提前收尾；"
+            f"如需完整枚举请提高 concurrency 或改用自定义字典"
+        )
+    elif reason == "rate_limited":
+        header_lines.append(
+            f"🛑 检测到连续 {_DIR_RATE_LIMIT_STREAK} 次 429/503，疑似 WAF / 限流触发；"
+            f"建议降低 concurrency 或改用授权的扫描窗口"
+        )
+    elif reason == "unreachable":
+        header_lines.append(
+            f"🛑 连续 {_DIR_ERROR_STREAK} 次请求失败，目标疑似不可达 / 离线；已提前停止"
+        )
 
     if not found:
         msg = f"未发现可访问路径（已检测 {len(wordlist)} 个）"
@@ -476,18 +537,59 @@ async def port_scan(
     return "端口扫描结果:\n" + "\n".join(results)
 
 
-# issue #20: IANA / RFC 保留地址段 → 提示用户为何扫不到
-_RESERVED_NOTES: tuple[tuple[str, str], ...] = (
-    ("10.0.0.0/8", "RFC1918 内网私有段"),
-    ("172.16.0.0/12", "RFC1918 内网私有段"),
-    ("192.168.0.0/16", "RFC1918 内网私有段"),
-    ("100.64.0.0/10", "RFC6598 运营商级 NAT (CGNAT)"),
-    ("198.18.0.0/15", "RFC2544 基准测试段（IANA 保留，不可路由）"),
-    ("203.0.113.0/24", "RFC5737 文档示例段"),
-    ("198.51.100.0/24", "RFC5737 文档示例段"),
-    ("192.0.2.0/24", "RFC5737 文档示例段"),
-    ("127.0.0.0/8", "回环地址"),
-    ("169.254.0.0/16", "RFC3927 链路本地地址"),
+# issue #20 / Day1-2: IANA / RFC 保留地址段 → 按类型给可执行建议
+# 每条结构：(cidr, short_note, actionable_suggestion)
+_RESERVED_NOTES: tuple[tuple[str, str, str], ...] = (
+    (
+        "10.0.0.0/8",
+        "RFC1918 内网私有段",
+        "通过 VPN / jump host / SOCKS 代理接入目标内网后再重扫",
+    ),
+    (
+        "172.16.0.0/12",
+        "RFC1918 内网私有段",
+        "通过 VPN / jump host / SOCKS 代理接入目标内网后再重扫",
+    ),
+    (
+        "192.168.0.0/16",
+        "RFC1918 内网私有段",
+        "通过 VPN / jump host / SOCKS 代理接入目标内网后再重扫",
+    ),
+    (
+        "100.64.0.0/10",
+        "RFC6598 运营商级 NAT (CGNAT)",
+        "外网不可达；请在对应 CGNAT 内部主机上运行扫描",
+    ),
+    (
+        "198.18.0.0/15",
+        "RFC2544 基准测试段（IANA 保留）",
+        "该段仅在扫描实验室内可路由；若目标真在此段，请进入对应测试网络",
+    ),
+    (
+        "203.0.113.0/24",
+        "RFC5737 文档示例段",
+        "是文档里的占位地址，非真实 IP —— 请换成实际的目标 IP",
+    ),
+    (
+        "198.51.100.0/24",
+        "RFC5737 文档示例段",
+        "是文档里的占位地址，非真实 IP —— 请换成实际的目标 IP",
+    ),
+    (
+        "192.0.2.0/24",
+        "RFC5737 文档示例段",
+        "是文档里的占位地址，非真实 IP —— 请换成实际的目标 IP",
+    ),
+    (
+        "127.0.0.0/8",
+        "回环地址",
+        "请直接在目标主机上本地运行 `port_scan 127.0.0.1 <ports>`",
+    ),
+    (
+        "169.254.0.0/16",
+        "RFC3927 链路本地地址",
+        "仅同网段可达；请在同一 L2 网络内的主机上运行扫描",
+    ),
 )
 
 
@@ -514,12 +616,11 @@ async def _reserved_range_note(target: str) -> str:
             return ""
         ip = ips[0]
 
-    for cidr, note in _RESERVED_NOTES:
+    for cidr, note, suggestion in _RESERVED_NOTES:
         if _ip_in_cidr(ip, cidr):
             return (
-                f"⚠ 目标解析到 {ip}（{cidr}，{note}）；"
-                f"该地址段在公网不可路由，端口扫描会失败。"
-                f"若需要实际测试，请提供可路由 IP 或在对应网络内运行。"
+                f"⚠ 目标解析到 {ip}（{cidr}，{note}）；\n"
+                f"   建议: {suggestion}"
             )
     return ""
 

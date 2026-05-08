@@ -287,6 +287,7 @@ def test_format_rdap_summary_includes_fallback_note() -> None:
 
 @pytest.mark.asyncio
 async def test_reserved_range_note_iana_testnet() -> None:
+    """Day1-2: IANA 测试段应给"进入测试网络"建议。"""
     from tools.recon import _reserved_range_note
 
     async def fake_resolve(_sub: str, _domain: str) -> list[str]:
@@ -297,16 +298,53 @@ async def test_reserved_range_note_iana_testnet() -> None:
 
     assert note
     assert "198.18.0.0/15" in note
-    assert "保留" in note or "测试" in note
+    assert "建议" in note
+    # 应该给出"进入对应测试网络"的可操作建议
+    assert "测试网络" in note or "实验室" in note
 
 
 @pytest.mark.asyncio
 async def test_reserved_range_note_rfc1918() -> None:
+    """Day1-2: RFC1918 应给"VPN / jump host / SOCKS"建议。"""
     from tools.recon import _reserved_range_note
 
     note = await _reserved_range_note("192.168.1.1")
     assert "192.168.0.0/16" in note
     assert "RFC1918" in note
+    assert "建议" in note
+    assert "VPN" in note or "jump host" in note or "SOCKS" in note
+
+
+@pytest.mark.asyncio
+async def test_reserved_range_note_loopback_local_advice() -> None:
+    """Day1-2: 127/8 回环段应给"本机运行"建议。"""
+    from tools.recon import _reserved_range_note
+
+    note = await _reserved_range_note("127.0.0.1")
+    assert "127.0.0.0/8" in note
+    assert "本地" in note or "本机" in note
+
+
+@pytest.mark.asyncio
+async def test_reserved_range_note_cgnat_advice() -> None:
+    """Day1-2: 100.64/10 CGNAT 段应提示从 CGNAT 内部扫。"""
+    from tools.recon import _reserved_range_note
+
+    note = await _reserved_range_note("100.64.1.1")
+    assert "100.64.0.0/10" in note
+    assert "CGNAT" in note
+    assert "内部" in note
+
+
+@pytest.mark.asyncio
+async def test_reserved_range_note_doc_range_advice() -> None:
+    """Day1-2: RFC5737 文档段应提示它不是真实 IP。"""
+    from tools.recon import _reserved_range_note
+
+    note = await _reserved_range_note("203.0.113.5")
+    assert "203.0.113.0/24" in note
+    assert "文档" in note
+    assert "非真实" in note or "占位" in note
 
 
 @pytest.mark.asyncio
