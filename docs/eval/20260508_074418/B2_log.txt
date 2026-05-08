@@ -1,0 +1,113 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · deepseek-v4-pro                   
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  44 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=http://demo.testfire.net
+[*] Turn 1 | Tokens: ~3219
+[Tool] dns_lookup → DNS 查询结果 (demo.testfire.net):
+  A: 198.18.231.69
+[Tool] whois_lookup → WHOIS / RDAP 信息 (demo.testfire.net):
+  (子域查询 demo.testfire.net 回退到注册域 testfire.net)
+  域名:        TESTFIRE.NET
+  注册商:      Amazon Registrar, Inc.
+  创建时间:    1999-07-23T13:52:32Z
+  到期时间:    2026-07-23T1
+[Tool] header_analysis → 目标: http://demo.testfire.net (HTTP 200)
+
+已配置 (0):
+
+缺失 (10):
+  ✗ HSTS (Strict-Transport-Security) — 缺失 (强制 HTTPS，防止降级攻击)
+  ✗ CSP (Content-Security-Policy) — 缺失 (限制资源加载来源，防止 XSS)
+  ✗ X-Frame-Options — 缺
+[*]   ▸ subdomain_enum demo.testfire.net: 4% (80/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 5% (100/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 10% (200/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 15% (300/2000) · ETA 3s
+[*]   ▸ subdomain_enum demo.testfire.net: 20% (400/2000) · ETA 3s
+[*]   ▸ subdomain_enum demo.testfire.net: 25% (500/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 30% (600/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 35% (700/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 40% (800/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 45% (900/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 50% (1000/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 55% (1100/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 60% (1200/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 65% (1300/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 70% (1400/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 75% (1500/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 80% (1600/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.demo.testfire.net → 
+198.18.0.0/15)，已过滤 2000 条疑似假阳性
+未发现 demo.testfire.net 的存活子域名（已检测 2000 个）
+[*] Turn 2 | Tokens: ~3957
+[Tool] generate_report → 报告已生成并保存: 
+C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_155412.m
+d (3479 字符)
+[*] Turn 3 | Tokens: ~5435
+[Agent] ---
+
+## ✅ 被动侦察完成 — `demo.testfire.net`
+
+报告已生成并保存至：
+> 
+`C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_155412.
+md`
+
+---
+
+### 📊 核心发现速览
+
+| 维度 | 结果 |
+|------|------|
+| **DNS** | 单 A 记录 `198.18.231.69`（Akamai 边缘 IP） |
+| **WHOIS** | `testfire.net` 注册于 **1999 年**，Amazon Registrar，锁定 
+Transfer/Delete/Update，8 台 Akamai NS |
+| **安全头** | **🔴 0/10** — HSTS/CSP/X-Frame-Options 等全部缺失 |
+| **子域名** | Wildcard DNS 覆盖，无存活子域 |
+| **服务端** | `Apache-Coyote/1.1` 泄露（Tomcat） |
+
+### 🎯 结论
+
+这是 IBM/Altoro Mutual 的公开 Web 演练靶场，托管在 Akamai 
+全球边缘网络上。安全头评分为零是**有意为之**——它本身就是设计来暴露漏洞供安全培
+训使用的。Wildcard DNS 和 Akamai 架构也是典型的企业级 WAF/CDN 部署模式。
+
+需要进一步对页面本身做轻量侦察（截图、表单、链接爬取）吗？
+---
+
+## ✅ 被动侦察完成 — `demo.testfire.net`
+
+报告已生成并保存至：
+> 
+`C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_155412.
+md`
+
+---
+
+### 📊 核心发现速览
+
+| 维度 | 结果 |
+|------|------|
+| **DNS** | 单 A 记录 `198.18.231.69`（Akamai 边缘 IP） |
+| **WHOIS** | `testfire.net` 注册于 **1999 年**，Amazon Registrar，锁定 
+Transfer/Delete/Update，8 台 Akamai NS |
+| **安全头** | **🔴 0/10** — HSTS/CSP/X-Frame-Options 等全部缺失 |
+| **子域名** | Wildcard DNS 覆盖，无存活子域 |
+| **服务端** | `Apache-Coyote/1.1` 泄露（Tomcat） |
+
+### 🎯 结论
+
+这是 IBM/Altoro Mutual 的公开 Web 演练靶场，托管在 Akamai 
+全球边缘网络上。安全头评分为零是**有意为之**——它本身就是设计来暴露漏洞供安全培
+训使用的。Wildcard DNS 和 Akamai 架构也是典型的企业级 WAF/CDN 部署模式。
+
+需要进一步对页面本身做轻量侦察（截图、表单、链接爬取）吗？
+

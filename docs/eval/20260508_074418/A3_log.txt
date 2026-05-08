@@ -1,0 +1,117 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · deepseek-v4-flash                 
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  44 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=http://www.itsecgames.com
+[*] Turn 1 | Tokens: ~3256
+[Tool] browser_navigate → 状态码: 200 | 标题: bWAPP, a buggy web application! |
+URL: http://www.itsecgames.com/
+[Tool] dns_lookup → DNS 查询结果 (www.itsecgames.com):
+  A: 198.18.215.101
+  MX: 5 itsecgames-com.mail.protection.outlook.com.
+  NS: ns53.domaincontrol.com., ns54.domaincontrol.com.
+  TXT: "v=spf1 mx a include:spf.protection
+[Tool] whois_lookup → WHOIS / RDAP 信息 (itsecgames.com):
+  域名:        ITSECGAMES.COM
+  注册商:      GoDaddy.com, LLC
+  创建时间:    2012-05-21T13:35:16Z
+  到期时间:    2027-05-21T13:35:16Z
+  最后修改:    2025-05-22T10:55:31Z
+  状态:        
+[Tool] header_analysis → 目标: http://www.itsecgames.com (HTTP 200)
+
+已配置 (0):
+
+缺失 (10):
+  ✗ HSTS (Strict-Transport-Security) — 缺失 (强制 HTTPS，防止降级攻击)
+  ✗ CSP (Content-Security-Policy) — 缺失 (限制资源加载来源，防止 XSS)
+  ✗ X-Frame-Options — 
+[*]   ▸ subdomain_enum itsecgames.com: 4% (80/2000)
+[*]   ▸ subdomain_enum itsecgames.com: 5% (100/2000)
+[*]   ▸ subdomain_enum itsecgames.com: 10% (200/2000)
+[*]   ▸ subdomain_enum itsecgames.com: 15% (300/2000)
+[*]   ▸ subdomain_enum itsecgames.com: 20% (400/2000) · ETA 2s
+[*]   ▸ subdomain_enum itsecgames.com: 25% (500/2000) · ETA 2s
+[*]   ▸ subdomain_enum itsecgames.com: 30% (600/2000) · ETA 2s
+[*]   ▸ subdomain_enum itsecgames.com: 35% (700/2000) · ETA 2s
+[*]   ▸ subdomain_enum itsecgames.com: 40% (800/2000) · ETA 2s
+[*]   ▸ subdomain_enum itsecgames.com: 45% (900/2000) · ETA 2s
+[*]   ▸ subdomain_enum itsecgames.com: 50% (1000/2000) · ETA 1s
+[*]   ▸ subdomain_enum itsecgames.com: 55% (1100/2000) · ETA 1s
+[*]   ▸ subdomain_enum itsecgames.com: 60% (1200/2000) · ETA 1s
+[*]   ▸ subdomain_enum itsecgames.com: 65% (1300/2000) · ETA 1s
+[*]   ▸ subdomain_enum itsecgames.com: 70% (1400/2000) · ETA 1s
+[*]   ▸ subdomain_enum itsecgames.com: 75% (1500/2000) · ETA 1s
+[*]   ▸ subdomain_enum itsecgames.com: 80% (1600/2000) · ETA 1s
+[*]   ▸ subdomain_enum itsecgames.com: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum itsecgames.com: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum itsecgames.com: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum itsecgames.com: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.itsecgames.com → 
+198.18.0.0/15)，已过滤 1998 条疑似假阳性
+未发现 itsecgames.com 的存活子域名（已检测 2000 个）
+[*] Turn 2 | Tokens: ~4014
+[Tool] browser_screenshot → 截图已保存: 
+C:\Users\23725\.argus\output\screenshots\itsecgames_homepage.png
+[Tool] browser_get_text → bWAPP
+an extremely buggy web app !
+Home    Bugs    Download        Talks & Training        Blog
+Home
+
+bWAPP, or a buggy web application, is a free and open source deliberately 
+insecure web application.
+It helps security 
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 4% (8/190) · ETA 45s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 5% (10/190) · ETA 36s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 10% (19/190) · ETA 44s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 15% (29/190) · ETA 48s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 20% (38/190) · ETA 45s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 25% (48/190) · ETA 45s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 30% (57/190) · ETA 40s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 35% (67/190) · ETA 38s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 40% (76/190) · ETA 36s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 45% (86/190) · ETA 33s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 50% (95/190) · ETA 30s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 55% (105/190) · ETA 27s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 60% (114/190) · ETA 25s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 65% (124/190) · ETA 22s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 70% (133/190) · ETA 19s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 75% (143/190) · ETA 16s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 80% (152/190) · ETA 13s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 85% (162/190) · ETA 9s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 90% (171/190) · ETA 6s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 95% (181/190) · ETA 3s
+[!] [TOOL_TIMEOUT] 工具 dir_bruteforce 执行超时 (60s): 超过最大执行时间
+[!] 重试 dir_bruteforce (1/2)...
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 4% (8/190) · ETA 233s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 5% (10/190) · ETA 186s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 10% (19/190) · ETA 115s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 15% (29/190) · ETA 92s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 20% (38/190) · ETA 77s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 25% (48/190) · ETA 68s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 30% (57/190) · ETA 60s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 35% (67/190) · ETA 54s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 40% (76/190) · ETA 48s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 45% (86/190) · ETA 44s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 50% (95/190) · ETA 39s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 55% (105/190) · ETA 34s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 60% (114/190) · ETA 30s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 65% (124/190) · ETA 26s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 70% (133/190) · ETA 22s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 75% (143/190) · ETA 18s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 80% (152/190) · ETA 14s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 85% (162/190) · ETA 11s
+[!] [TOOL_TIMEOUT] 工具 dir_bruteforce 执行超时 (60s): 超过最大执行时间
+[!] 重试 dir_bruteforce (2/2)...
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 4% (8/190) · ETA 227s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 5% (10/190) · ETA 211s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 10% (19/190) · ETA 127s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 15% (29/190) · ETA 97s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 20% (38/190) · ETA 84s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 25% (48/190) · ETA 72s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 30% (57/190) · ETA 66s
+[*]   ▸ dir_bruteforce http://www.itsecgames.com: 35% (67/190) · ETA 59s
+

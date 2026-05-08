@@ -1,0 +1,132 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · mimo-v2.5-pro                     
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  44 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=http://demo.testfire.net
+[*] Turn 1 | Tokens: ~3219
+[Tool] dns_lookup → DNS 查询结果 (demo.testfire.net):
+  A: 198.18.239.76
+[*] Turn 2 | Tokens: ~3258
+[Tool] whois_lookup → WHOIS / RDAP 信息 (demo.testfire.net):
+  (子域查询 demo.testfire.net 回退到注册域 testfire.net)
+  域名:        TESTFIRE.NET
+  注册商:      Amazon Registrar, Inc.
+  创建时间:    1999-07-23T13:52:32Z
+  到期时间:    2026-07-23T1
+[*] Turn 3 | Tokens: ~3482
+[Tool] header_analysis → 目标: http://demo.testfire.net (HTTP 200)
+
+已配置 (0):
+
+缺失 (10):
+  ✗ HSTS (Strict-Transport-Security) — 缺失 (强制 HTTPS，防止降级攻击)
+  ✗ CSP (Content-Security-Policy) — 缺失 (限制资源加载来源，防止 XSS)
+  ✗ X-Frame-Options — 缺
+[*] Turn 4 | Tokens: ~3802
+[*]   ▸ subdomain_enum demo.testfire.net: 4% (80/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 5% (100/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 10% (200/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 15% (300/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 20% (400/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 25% (500/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 30% (600/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 35% (700/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 40% (800/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 45% (900/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 50% (1000/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 55% (1100/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 60% (1200/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 65% (1300/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 70% (1400/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 75% (1500/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 80% (1600/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.demo.testfire.net → 
+198.18.0.0/15)，已过滤 2000 条疑似假阳性
+未发现 demo.testfire.net 的存活子域名（已检测 2000 个）
+[*] Turn 5 | Tokens: ~3879
+[Tool] generate_report → 报告已生成并保存: 
+C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_155521.m
+d (1769 字符)
+[*] Turn 6 | Tokens: ~4435
+[Agent] ## 被动侦察完成 ✅
+
+已对 `http://demo.testfire.net` 完成全部 5 步只读侦察，报告已保存。
+
+---
+
+### 📊 关键发现摘要
+
+| 维度 | 结果 |
+|------|------|
+| **IP 地址** | `198.18.239.76` |
+| **服务器** | Apache-Coyote/1.1 (Tomcat) |
+| **域名注册商** | Amazon Registrar, Inc. |
+| **域名年龄** | 1999 年注册，已 27 年历史 |
+| **DNS 服务** | Akamai (8 个 NS 记录) |
+| **安全头评分** | **0/10** — 全部缺失 |
+| **子域名** | 通配符 DNS，未发现真实子域名 |
+
+---
+
+### 🔴 安全风险提示
+
+1. **零安全头配置** — 缺失 HSTS、CSP、X-Frame-Options 等全部 10 项安全头
+2. **服务器信息泄露** — `Apache-Coyote/1.1` 暴露了具体服务器版本
+3. **无 HTTPS 强制** — 缺少 HSTS，存在降级攻击风险
+
+---
+
+### 📁 报告文件
+
+```
+~/.argus/output/reports/report_demo.testfire.net_20260508_155521.md
+```
+
+> ℹ️ **说明**：`demo.testfire.net` 是 IBM 官方提供的 **AltoroJ 
+安全演示应用**，专为安全测试和教学设计，上述"漏洞"属于预期行为。如需进一步深度
+侦察（端口扫描、目录爆破等），请告知。
+## 被动侦察完成 ✅
+
+已对 `http://demo.testfire.net` 完成全部 5 步只读侦察，报告已保存。
+
+---
+
+### 📊 关键发现摘要
+
+| 维度 | 结果 |
+|------|------|
+| **IP 地址** | `198.18.239.76` |
+| **服务器** | Apache-Coyote/1.1 (Tomcat) |
+| **域名注册商** | Amazon Registrar, Inc. |
+| **域名年龄** | 1999 年注册，已 27 年历史 |
+| **DNS 服务** | Akamai (8 个 NS 记录) |
+| **安全头评分** | **0/10** — 全部缺失 |
+| **子域名** | 通配符 DNS，未发现真实子域名 |
+
+---
+
+### 🔴 安全风险提示
+
+1. **零安全头配置** — 缺失 HSTS、CSP、X-Frame-Options 等全部 10 项安全头
+2. **服务器信息泄露** — `Apache-Coyote/1.1` 暴露了具体服务器版本
+3. **无 HTTPS 强制** — 缺少 HSTS，存在降级攻击风险
+
+---
+
+### 📁 报告文件
+
+```
+~/.argus/output/reports/report_demo.testfire.net_20260508_155521.md
+```
+
+> ℹ️ **说明**：`demo.testfire.net` 是 IBM 官方提供的 **AltoroJ 
+安全演示应用**，专为安全测试和教学设计，上述"漏洞"属于预期行为。如需进一步深度
+侦察（端口扫描、目录爆破等），请告知。
+

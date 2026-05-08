@@ -1,0 +1,260 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · deepseek-v4-flash                 
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  44 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=http://demo.testfire.net
+[*] Turn 1 | Tokens: ~3258
+[Tool] browser_navigate → 状态码: 200 | 标题: Altoro Mutual | URL: 
+http://demo.testfire.net/
+[Tool] dns_lookup → DNS 查询结果 (demo.testfire.net):
+  A: 198.18.207.115
+[Tool] whois_lookup → WHOIS / RDAP 信息 (demo.testfire.net):
+  (子域查询 demo.testfire.net 回退到注册域 testfire.net)
+  域名:        TESTFIRE.NET
+  注册商:      Amazon Registrar, Inc.
+  创建时间:    1999-07-23T13:52:32Z
+  到期时间:    2026-07-23T1
+[Tool] header_analysis → 目标: http://demo.testfire.net (HTTP 200)
+
+已配置 (0):
+
+缺失 (10):
+  ✗ HSTS (Strict-Transport-Security) — 缺失 (强制 HTTPS，防止降级攻击)
+  ✗ CSP (Content-Security-Policy) — 缺失 (限制资源加载来源，防止 XSS)
+  ✗ X-Frame-Options — 缺
+[*]   ▸ subdomain_enum demo.testfire.net: 4% (80/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 5% (100/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 10% (200/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 15% (300/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 20% (400/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 25% (500/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 30% (600/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 35% (700/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 40% (800/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 45% (900/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 50% (1000/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 55% (1100/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 60% (1200/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 65% (1300/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 70% (1400/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 75% (1500/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 80% (1600/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.demo.testfire.net → 
+198.18.0.0/15)，已过滤 2000 条疑似假阳性
+未发现 demo.testfire.net 的存活子域名（已检测 2000 个）
+[*] Turn 2 | Tokens: ~4009
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 4% (8/190) · ETA 53s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 5% (10/190) · ETA 43s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 10% (19/190) · ETA 21s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 15% (29/190) · ETA 17s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 20% (38/190) · ETA 13s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 25% (48/190) · ETA 12s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 30% (57/190) · ETA 9s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 35% (67/190) · ETA 8s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 40% (76/190) · ETA 7s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 45% (86/190) · ETA 6s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 50% (95/190) · ETA 5s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 55% (105/190) · ETA 4s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 60% (114/190) · ETA 4s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 65% (124/190) · ETA 3s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 70% (133/190) · ETA 3s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 75% (143/190) · ETA 2s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 80% (152/190) · ETA 2s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 85% (162/190) · ETA 1s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 90% (171/190) · ETA 1s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 95% (181/190) · ETA 0s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 100% (190/190) ✓
+[Tool] dir_bruteforce → 目录枚举 (http://demo.testfire.net) — 发现 1/190:
+  [200] /  (9405 bytes)
+[Tool] port_scan → 未发现 demo.testfire.net 的开放端口
+⚠ 目标解析到 198.18.215.81（198.18.0.0/15，RFC2544 基准测试段（IANA 保留））；
+   建议: 该段仅在扫描实验室内可路由；若目标真在此段，请进入对应测试网络
+[*] Turn 3 | Tokens: ~4250
+[Tool] browser_screenshot → 截图已保存: 
+C:\Users\23725\.argus\output\screenshots\demo_testfire_home.png
+[Tool] browser_get_text →       Sign In | Contact Us | Feedback | Search  
+
+   ONLINE BANKING LOGIN
+        
+PERSONAL
+        
+SMALL BUSINESS
+        
+INSIDE ALTORO MUTUAL
+
+
+PERSONAL
+Deposit Product
+Checking
+Loan Products
+Cards
+Investments & Insurance
+
+[Tool] crawl_links → 共发现 32 个链接 (同域=true):
+  http://demo.testfire.net/index.jsp
+  http://demo.testfire.net/login.jsp  [Sign In]
+  http://demo.testfire.net/index.jsp?content=inside_contact.htm  [Contact Us]
+  http://demo.t
+[Tool] crawl_forms → 共发现 1 个表单:
+表单 #1: GET → http://demo.testfire.net/search.jsp
+     query
+     (unnamed)
+[*] Turn 4 | Tokens: ~5585
+[Tool] browser_navigate → 访问失败: Page.goto: net::ERR_EMPTY_RESPONSE at 
+http://demo.testfire.net/login.jsp
+Call log:
+  - navigating to "http://demo.testfire.net/login.jsp", waiting until 
+"domcontentloaded"
+
+[Tool] browser_navigate → 访问失败: Page.goto: net::ERR_CONNECTION_ABORTED at 
+http://demo.testfire.net/swagger/index.html
+Call log:
+  - navigating to "http://demo.testfire.net/swagger/index.html", waiting until 
+"domcontentloaded"
+
+[Tool] crawl_js_sources → 提取 JS 源失败: Page.eval_on_selector_all: Execution 
+context was destroyed, most likely because of a navigation
+[*] Turn 5 | Tokens: ~5803
+[Tool] http_request → 状态码: 200
+URL: http://demo.testfire.net/login.jsp
+响应头:
+  connection: close
+  transfer-encoding: chunked
+  content-type: text/html;charset=ISO-8859-1
+  date: Fri, 08 May 2026 07:47:05 GMT
+  server: Apac
+[Tool] http_request → 状态码: 200
+URL: http://demo.testfire.net/swagger/index.html
+响应头:
+  connection: close
+  content-length: 1488
+  accept-ranges: bytes
+  content-type: text/html
+  date: Fri, 08 May 2026 07:47:05 GMT
+  etag:
+[Tool] http_request → 状态码: 200
+URL: http://demo.testfire.net/feedback.jsp
+响应头:
+  connection: close
+  transfer-encoding: chunked
+  content-type: text/html;charset=ISO-8859-1
+  date: Fri, 08 May 2026 07:47:06 GMT
+  server: A
+[Tool] http_request → 状态码: 200
+URL: http://demo.testfire.net/search.jsp
+响应头:
+  connection: close
+  content-length: 7009
+  content-type: text/html;charset=ISO-8859-1
+  date: Fri, 08 May 2026 07:47:07 GMT
+  server: Apache-Co
+[Tool] http_request → 状态码: 200
+URL: http://demo.testfire.net/status_check.jsp
+响应头:
+  connection: close
+  transfer-encoding: chunked
+  content-type: text/html;charset=ISO-8859-1
+  date: Fri, 08 May 2026 07:47:07 GMT
+  serve
+[*] Turn 6 | Tokens: ~11568
+[Tool] http_request → 状态码: 200
+URL: http://demo.testfire.net/swagger/properties.json
+响应头:
+  connection: close
+  content-length: 9448
+  accept-ranges: bytes
+  content-type: application/json
+  date: Fri, 08 May 2026 07:47:12
+[Tool] http_request → 状态码: 404
+URL: http://demo.testfire.net/cgi.exe
+响应头:
+  connection: close
+  content-length: 6958
+  content-type: text/html;charset=ISO-8859-1
+  date: Fri, 08 May 2026 07:47:12 GMT
+  server: Apache-Coyot
+[Tool] crawl_js_endpoints → 未找到 JS 文件可供分析
+[*] Turn 7 | Tokens: ~14029
+[Tool] generate_report → 报告已生成并保存: 
+C:\Users\23725\.argus\output\reports\report_demo.testfire.net (AltoroJ - HCL 
+AppScan 漏洞演示)_20260508_154803.md (6387 字符)
+[*] Turn 8 | Tokens: ~16832
+[Agent] ---
+
+## ✅ 侦察完成！报告已保存
+
+对 `http://demo.testfire.net` 的中强度主动侦察已全部完成，报告已保存至：
+📄 **`report_demo.testfire.net_20260508_154803.md`**
+
+---
+
+### 📊 侦察结果速览
+
+| 维度 | 结论 |
+|------|------|
+| 🎯 **目标身份** | **AltoroJ** — HCL AppScan 漏洞演示银行应用（故意含漏洞） |
+| 🌐 **IP 地址** | `198.18.207.115`（RFC2544 保留段，测试网络） |
+| 🖥 **技术栈** | Apache Tomcat (`Apache-Coyote/1.1`) + Java JSP |
+| 🔒 **安全头评分** | **0/10** ❌（全部缺失） |
+| 📁 **发现页面** | 32 个链接，包括 login/feedback/search/status_check 等 JSP |
+| 📡 **REST API** | ✅ **Swagger 完全暴露** — 11 个 API 
+端点（Login/Account/Transfer/Feedback/Admin/Logout） |
+| 🔌 **开放端口** | nmap 未检测到（保留段限制） |
+| 📋 **子域名** | 通配符 DNS，未发现存活子域 |
+| 🗺 **WHOIS** | 注册于 1999 年，Amazon Registrar，Akamai DNS |
+
+### 🚨 关键安全发现
+
+1. **Swagger 文档完全公开** — `/swagger/properties.json` 无需认证即可获取完整 
+API 定义
+2. **零安全头** — HSTS、CSP、X-Frame-Options 等 10 项安全头全部缺失
+3. **版本信息泄露** — Server 头暴露 `Apache-Coyote/1.1`
+4. **无 HTTPS** — 全站明文 HTTP 传输
+5. **JSESSIONID 不安全** — 无 Secure/SameSite 标记
+6. **API 认证暴露** — `/api/feedback/all` 可能无需认证即可查看全部反馈
+7. **该应用为已知漏洞靶场** — 源码开源在 GitHub，刻意包含 SQL 
+注入、XSS、认证缺陷等
+[*] 技能已保存: web_page_reconnaissance (6 步)
+---
+
+## ✅ 侦察完成！报告已保存
+
+对 `http://demo.testfire.net` 的中强度主动侦察已全部完成，报告已保存至：
+📄 **`report_demo.testfire.net_20260508_154803.md`**
+
+---
+
+### 📊 侦察结果速览
+
+| 维度 | 结论 |
+|------|------|
+| 🎯 **目标身份** | **AltoroJ** — HCL AppScan 漏洞演示银行应用（故意含漏洞） |
+| 🌐 **IP 地址** | `198.18.207.115`（RFC2544 保留段，测试网络） |
+| 🖥 **技术栈** | Apache Tomcat (`Apache-Coyote/1.1`) + Java JSP |
+| 🔒 **安全头评分** | **0/10** ❌（全部缺失） |
+| 📁 **发现页面** | 32 个链接，包括 login/feedback/search/status_check 等 JSP |
+| 📡 **REST API** | ✅ **Swagger 完全暴露** — 11 个 API 
+端点（Login/Account/Transfer/Feedback/Admin/Logout） |
+| 🔌 **开放端口** | nmap 未检测到（保留段限制） |
+| 📋 **子域名** | 通配符 DNS，未发现存活子域 |
+| 🗺 **WHOIS** | 注册于 1999 年，Amazon Registrar，Akamai DNS |
+
+### 🚨 关键安全发现
+
+1. **Swagger 文档完全公开** — `/swagger/properties.json` 无需认证即可获取完整 
+API 定义
+2. **零安全头** — HSTS、CSP、X-Frame-Options 等 10 项安全头全部缺失
+3. **版本信息泄露** — Server 头暴露 `Apache-Coyote/1.1`
+4. **无 HTTPS** — 全站明文 HTTP 传输
+5. **JSESSIONID 不安全** — 无 Secure/SameSite 标记
+6. **API 认证暴露** — `/api/feedback/all` 可能无需认证即可查看全部反馈
+7. **该应用为已知漏洞靶场** — 源码开源在 GitHub，刻意包含 SQL 
+注入、XSS、认证缺陷等
+

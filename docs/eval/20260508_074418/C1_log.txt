@@ -1,0 +1,147 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · deepseek-v4-flash                 
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  44 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=https://cloudflare.com
+[*] Turn 1 | Tokens: ~3254
+[Tool] dns_lookup → DNS 查询结果 (cloudflare.com):
+  A: 198.18.247.47
+  MX: 10 mxb.global.inbound.cf-emailsecurity.net., 5 
+mxa-canary.global.inbound.cf-emailsecurity.net., 5 
+mxb-canary.global.inbound.cf-emailsecurity.net., 1
+[Tool] whois_lookup → WHOIS / RDAP 信息 (cloudflare.com):
+  域名:        CLOUDFLARE.COM
+  注册商:      Cloudflare, Inc.
+  创建时间:    2009-02-17T22:07:54Z
+  到期时间:    2033-02-17T22:07:54Z
+  最后修改:    2024-01-09T16:45:28Z
+  状态:        
+[Tool] header_analysis → 目标: https://cloudflare.com (HTTP 200)
+
+已配置 (6):
+  ✓ HSTS (Strict-Transport-Security): max-age=31536000; includeSubDomains
+  ✓ X-Frame-Options: SAMEORIGIN
+  ✓ X-Content-Type-Options: nosniff
+  ✓ X-XSS-
+[*]   ▸ subdomain_enum cloudflare.com: 4% (80/2000)
+[*]   ▸ subdomain_enum cloudflare.com: 5% (100/2000)
+[*]   ▸ subdomain_enum cloudflare.com: 10% (200/2000)
+[*]   ▸ subdomain_enum cloudflare.com: 15% (300/2000)
+[*]   ▸ subdomain_enum cloudflare.com: 20% (400/2000)
+[*]   ▸ subdomain_enum cloudflare.com: 25% (500/2000)
+[*]   ▸ subdomain_enum cloudflare.com: 30% (600/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 35% (700/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 40% (800/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 45% (900/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 50% (1000/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 55% (1100/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 60% (1200/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 65% (1300/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 70% (1400/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 75% (1500/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 80% (1600/2000) · ETA 1s
+[*]   ▸ subdomain_enum cloudflare.com: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum cloudflare.com: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum cloudflare.com: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum cloudflare.com: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.cloudflare.com → 
+198.18.0.0/15)，已过滤 1998 条疑似假阳性
+子域名枚举 (cloudflare.com) — 发现 1/2000:
+  time.cloudflare.com → 162.159.200.1, 162.159.200.123
+[*] Turn 2 | Tokens: ~4166
+[*]   ▸ dir_bruteforce https://cloudflare.com: 4% (8/190) · ETA 35s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 5% (10/190) · ETA 28s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 10% (19/190) · ETA 15s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 15% (29/190) · ETA 10s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 20% (38/190) · ETA 8s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 25% (48/190) · ETA 6s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 30% (57/190) · ETA 5s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 35% (67/190) · ETA 5s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 40% (76/190) · ETA 4s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 45% (86/190) · ETA 3s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 50% (95/190) · ETA 3s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 55% (105/190) · ETA 3s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 60% (114/190) · ETA 2s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 65% (124/190) · ETA 2s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 70% (133/190) · ETA 2s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 75% (143/190) · ETA 1s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 80% (152/190) · ETA 1s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 85% (162/190) · ETA 1s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 90% (171/190) · ETA 0s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 95% (181/190) · ETA 0s
+[*]   ▸ dir_bruteforce https://cloudflare.com: 100% (190/190) ✓
+[Tool] dir_bruteforce → ⚠ 目标疑似全站重定向（baseline 状态码 
+301），结果已按基线过滤
+未发现可访问路径（已检测 190 个）
+[Tool] port_scan → 未发现 cloudflare.com 的开放端口
+⚠ 目标解析到 198.18.255.6（198.18.0.0/15，RFC2544 基准测试段（IANA 保留））；
+   建议: 该段仅在扫描实验室内可路由；若目标真在此段，请进入对应测试网络
+[*] Turn 3 | Tokens: ~4452
+[Tool] generate_report → 报告已生成并保存: 
+C:\Users\23725\.argus\output\reports\report_cloudflare.com_20260508_155635.md 
+(3674 字符)
+[*] Turn 4 | Tokens: ~5941
+[Tool] save_file → 保存被拒绝: 路径越界（write）: 
+'C:\\Users\\23725\\Desktop\\cloudflare.com_侦察报告.md' 
+不在允许目录内。如需放行，可在 config.toml 添加  write_allowed_dirs = ["..."]
+[*] Turn 5 | Tokens: ~7330
+[Agent] ---
+
+## ✅ 侦察完成！结果汇总
+
+报告已保存到 
+`output/reports/report_cloudflare.com_20260508_155635.md`，以下是核心发现：
+
+### 📊 关键发现一览
+
+| 项目 | 结果 |
+|------|------|
+| **DNS** | A `198.18.247.47`（保留段）· MX 走 cf-emailsecurity · NS 自持 |
+| **WHOIS** | Cloudflare, Inc. 注册· 2033 年到期· 6 重保护锁 |
+| **安全头** | **6/10** — HSTS 优秀，但缺失 CSP/COOP/COEP |
+| **子域名** | `time.cloudflare.com` 存活（Wildcard DNS 过滤了 1998 条假阳性） 
+|
+| **目录爆破** | 全站 301 重定向，WAF 拦截，未发现隐藏路径 |
+| **端口扫描** | 解析到 RFC2544 保留段 `198.18.x.x`，真实 IP 完全隐藏 |
+
+### 🛡 总体评价
+
+Cloudflare 对自己官网的防护做到了极致：
+1. **Wildcard DNS** 策略让子域名枚举几乎失效
+2. **DNS 指向保留段**（198.18.0.0/15）隐藏真实源 IP
+3. **全站 301 + WAF** 阻断目录爆破
+4. **HSTS + 多种安全头** 保障传输安全
+
+唯一可改进的是补充 **CSP** 和 **COEP** 安全头（目前 6/10）。
+---
+
+## ✅ 侦察完成！结果汇总
+
+报告已保存到 
+`output/reports/report_cloudflare.com_20260508_155635.md`，以下是核心发现：
+
+### 📊 关键发现一览
+
+| 项目 | 结果 |
+|------|------|
+| **DNS** | A `198.18.247.47`（保留段）· MX 走 cf-emailsecurity · NS 自持 |
+| **WHOIS** | Cloudflare, Inc. 注册· 2033 年到期· 6 重保护锁 |
+| **安全头** | **6/10** — HSTS 优秀，但缺失 CSP/COOP/COEP |
+| **子域名** | `time.cloudflare.com` 存活（Wildcard DNS 过滤了 1998 条假阳性） 
+|
+| **目录爆破** | 全站 301 重定向，WAF 拦截，未发现隐藏路径 |
+| **端口扫描** | 解析到 RFC2544 保留段 `198.18.x.x`，真实 IP 完全隐藏 |
+
+### 🛡 总体评价
+
+Cloudflare 对自己官网的防护做到了极致：
+1. **Wildcard DNS** 策略让子域名枚举几乎失效
+2. **DNS 指向保留段**（198.18.0.0/15）隐藏真实源 IP
+3. **全站 301 + WAF** 阻断目录爆破
+4. **HSTS + 多种安全头** 保障传输安全
+
+唯一可改进的是补充 **CSP** 和 **COEP** 安全头（目前 6/10）。
+

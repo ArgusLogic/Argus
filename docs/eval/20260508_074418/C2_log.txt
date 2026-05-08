@@ -1,0 +1,163 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · deepseek-v4-flash                 
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  44 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=https://microsoft.com
+[*] Turn 1 | Tokens: ~3213
+[Tool] dns_lookup → DNS 查询结果 (microsoft.com):
+  A: 198.18.255.17
+[Tool] dns_lookup → 未查询到 microsoft.com 的 DNS 记录
+[Tool] dns_lookup → DNS 查询结果 (microsoft.com):
+  MX: 10 microsoft-com.mail.protection.outlook.com.
+[Tool] dns_lookup → DNS 查询结果 (microsoft.com):
+  NS: ns4-39.azure-dns.info., ns1-39.azure-dns.com., ns2-39.azure-dns.net., 
+ns3-39.azure-dns.org.
+[Tool] dns_lookup → 未查询到 microsoft.com 的 DNS 记录
+[Tool] dns_lookup → 未查询到 microsoft.com 的 DNS 记录
+[Tool] whois_lookup → WHOIS / RDAP 信息 (microsoft.com):
+  域名:        MICROSOFT.COM
+  注册商:      MarkMonitor Inc.
+  创建时间:    1991-05-02T04:00:00Z
+  到期时间:    2027-05-03T04:00:00Z
+  最后修改:    2026-01-29T18:46:57Z
+  状态:        cl
+[*] Turn 2 | Tokens: ~3685
+[Tool] header_analysis → 目标: https://microsoft.com (HTTP 200)
+
+已配置 (1):
+  ✓ HSTS (Strict-Transport-Security): max-age=31536000; includeSubDomains
+
+缺失 (9):
+  ✗ CSP (Content-Security-Policy) — 缺失 (限制资源加载来源，防止 XSS)
+  ✗ X-Frame-O
+[Tool] browser_navigate → 状态码: 200 | 标题: Microsoft – 
+AI、雲端、生產力、運算、遊戲及應用程式 | URL: https://www.microsoft.com/zh-hk/
+[*] Turn 3 | Tokens: ~4071
+[*]   ▸ subdomain_enum microsoft.com: 4% (80/2000)
+[*]   ▸ subdomain_enum microsoft.com: 5% (100/2000)
+[*]   ▸ subdomain_enum microsoft.com: 10% (200/2000)
+[*]   ▸ subdomain_enum microsoft.com: 15% (300/2000)
+[*]   ▸ subdomain_enum microsoft.com: 20% (400/2000)
+[*]   ▸ subdomain_enum microsoft.com: 25% (500/2000) · ETA 2s
+[*]   ▸ subdomain_enum microsoft.com: 30% (600/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 35% (700/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 40% (800/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 45% (900/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 50% (1000/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 55% (1100/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 60% (1200/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 65% (1300/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 70% (1400/2000) · ETA 1s
+[*]   ▸ subdomain_enum microsoft.com: 75% (1500/2000) · ETA 0s
+[*]   ▸ subdomain_enum microsoft.com: 80% (1600/2000) · ETA 0s
+[*]   ▸ subdomain_enum microsoft.com: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum microsoft.com: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum microsoft.com: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum microsoft.com: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.microsoft.com → 
+198.18.0.0/15)，已过滤 1998 条疑似假阳性
+未发现 microsoft.com 的存活子域名（已检测 2000 个）
+[*] Turn 4 | Tokens: ~4174
+[Tool] browser_screenshot → 截图已保存: 
+C:\Users\23725\.argus\output\screenshots\microsoft-homepage.png
+[Tool] devtools_headers → 未找到当前页面的响应头记录。请先开启抓包 
+(devtools_start_capture) 再访问页面。
+[*] Turn 5 | Tokens: ~4307
+[Tool] generate_report → 报告已生成并保存: 
+C:\Users\23725\.argus\output\reports\report_microsoft.com_20260508_155810.md 
+(3330 字符)
+[*] Turn 6 | Tokens: ~5709
+[Agent] ---
+
+## ✅ `microsoft.com` 被动侦察报告 — 完成
+
+以下是本次被动侦察的完整摘要：
+
+---
+
+### 1️⃣ DNS 记录
+| 类型 | 结果 |
+|------|------|
+| **A** | `198.18.255.17` ⚠️（受网络环境影响，非真实 IP） |
+| **AAAA** | ❌ 无记录 |
+| **MX** | `microsoft-com.mail.protection.outlook.com.` (10) |
+| **NS** | `ns{1-4}-39.azure-dns.{com,net,org,info}` → **Azure DNS** |
+| **TXT/CNAME** | ❌ 无记录 |
+
+### 2️⃣ WHOIS
+| 字段 | 值 |
+|------|-----|
+| **注册商** | MarkMonitor Inc. |
+| **创建** | 1991-05-02（35 年历史） |
+| **到期** | 2027-05-03 |
+| **状态** | 6 项保护锁定（client/server 级 delete/transfer/update） |
+
+### 3️⃣ HTTP 安全头 ⭐ **1/10**
+- ✅ **HSTS** `max-age=31536000; includeSubDomains`
+- ❌ 缺失 **CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy / 
+Permissions-Policy / COOP / CORP / COEP**
+- 💡 *注：微软通常在子域（如 
+login.live.com）上配置完整安全头，首页轻量配置属于常见设计。*
+
+### 4️⃣ 子域名枚举
+- **检测 2000 个**，**过滤 1998 条** wildcard 假阳性（`*.microsoft.com → 
+198.18.0.0/15`）
+- **存活子域名：0**（受当前网络环境影响）
+
+### 5️⃣ 页面快照
+- 首页自动跳转至 `https://www.microsoft.com/zh-hk/`
+- 截图已保存
+
+---
+
+📄 
+**完整报告已保存至**：`output/reports/report_microsoft.com_20260508_155810.md`
+---
+
+## ✅ `microsoft.com` 被动侦察报告 — 完成
+
+以下是本次被动侦察的完整摘要：
+
+---
+
+### 1️⃣ DNS 记录
+| 类型 | 结果 |
+|------|------|
+| **A** | `198.18.255.17` ⚠️（受网络环境影响，非真实 IP） |
+| **AAAA** | ❌ 无记录 |
+| **MX** | `microsoft-com.mail.protection.outlook.com.` (10) |
+| **NS** | `ns{1-4}-39.azure-dns.{com,net,org,info}` → **Azure DNS** |
+| **TXT/CNAME** | ❌ 无记录 |
+
+### 2️⃣ WHOIS
+| 字段 | 值 |
+|------|-----|
+| **注册商** | MarkMonitor Inc. |
+| **创建** | 1991-05-02（35 年历史） |
+| **到期** | 2027-05-03 |
+| **状态** | 6 项保护锁定（client/server 级 delete/transfer/update） |
+
+### 3️⃣ HTTP 安全头 ⭐ **1/10**
+- ✅ **HSTS** `max-age=31536000; includeSubDomains`
+- ❌ 缺失 **CSP / X-Frame-Options / X-Content-Type-Options / Referrer-Policy / 
+Permissions-Policy / COOP / CORP / COEP**
+- 💡 *注：微软通常在子域（如 
+login.live.com）上配置完整安全头，首页轻量配置属于常见设计。*
+
+### 4️⃣ 子域名枚举
+- **检测 2000 个**，**过滤 1998 条** wildcard 假阳性（`*.microsoft.com → 
+198.18.0.0/15`）
+- **存活子域名：0**（受当前网络环境影响）
+
+### 5️⃣ 页面快照
+- 首页自动跳转至 `https://www.microsoft.com/zh-hk/`
+- 截图已保存
+
+---
+
+📄 
+**完整报告已保存至**：`output/reports/report_microsoft.com_20260508_155810.md`
+

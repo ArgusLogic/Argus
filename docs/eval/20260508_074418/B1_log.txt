@@ -1,0 +1,126 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · deepseek-v4-flash                 
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  44 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=http://demo.testfire.net
+[*] Turn 1 | Tokens: ~3219
+[Tool] dns_lookup → DNS 查询结果 (demo.testfire.net):
+  A: 198.18.223.82
+[Tool] whois_lookup → WHOIS / RDAP 信息 (demo.testfire.net):
+  (子域查询 demo.testfire.net 回退到注册域 testfire.net)
+  域名:        TESTFIRE.NET
+  注册商:      Amazon Registrar, Inc.
+  创建时间:    1999-07-23T13:52:32Z
+  到期时间:    2026-07-23T1
+[*] Turn 2 | Tokens: ~3535
+[Tool] header_analysis → 目标: http://demo.testfire.net (HTTP 200)
+
+已配置 (0):
+
+缺失 (10):
+  ✗ HSTS (Strict-Transport-Security) — 缺失 (强制 HTTPS，防止降级攻击)
+  ✗ CSP (Content-Security-Policy) — 缺失 (限制资源加载来源，防止 XSS)
+  ✗ X-Frame-Options — 缺
+[*]   ▸ subdomain_enum demo.testfire.net: 4% (80/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 5% (100/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 10% (200/2000)
+[*]   ▸ subdomain_enum demo.testfire.net: 15% (300/2000) · ETA 3s
+[*]   ▸ subdomain_enum demo.testfire.net: 20% (400/2000) · ETA 3s
+[*]   ▸ subdomain_enum demo.testfire.net: 25% (500/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 30% (600/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 35% (700/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 40% (800/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 45% (900/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 50% (1000/2000) · ETA 2s
+[*]   ▸ subdomain_enum demo.testfire.net: 55% (1100/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 60% (1200/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 65% (1300/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 70% (1400/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 75% (1500/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 80% (1600/2000) · ETA 1s
+[*]   ▸ subdomain_enum demo.testfire.net: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum demo.testfire.net: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.demo.testfire.net → 
+198.18.0.0/15)，已过滤 2000 条疑似假阳性
+未发现 demo.testfire.net 的存活子域名（已检测 2000 个）
+[*] Turn 3 | Tokens: ~4001
+[Tool] generate_report → 报告已生成并保存: 
+C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_155239.m
+d (2741 字符)
+[*] Turn 4 | Tokens: ~5133
+[Agent] ---
+
+## ✅ 被动侦察完成 — demo.testfire.net
+
+报告已保存至 
+`report_demo.testfire.net_20260508_155239.md`。以下是核心发现汇总：
+
+### 📋 侦察概要
+
+| 项目 | 结果 |
+|------|------|
+| **DNS A 记录** | `198.18.223.82` |
+| **HTTP 状态** | 200 OK（但被中间设备拦截） |
+| **安全头评分** | **0/10** ❌ |
+| **存活子域名** | 无（泛解析过滤 2000+） |
+| **Web 服务器** | Apache-Coyote/1.1 (Tomcat) |
+| **注册商** | Amazon Registrar, Inc. |
+| **DNS 托管** | Akamai (8 台 NS) |
+
+### 🔑 关键发现
+
+1. **DNS 指向 RFC 2544 保留地址** — `198.18.223.82` 
+是网络基准测试保留段，说明该域名被本地配置/VPN/代理拦截，**实际服务不可直接触达
+**。这也是历史访问报 403 和连接错误的根因。
+
+2. **安全配置为零** — 全部 10 
+项安全头均缺失，攻击者可轻松实施点击劫持、XSS、MIME 嗅探等攻击。
+
+3. **Server 头泄露技术栈** — `Apache-Coyote/1.1` 明确暴露了后端为 **Apache 
+Tomcat**（Java 环境）。
+
+4. **Wildcard DNS 阻止子域名枚举** — 泛解析使 DNS 
+爆破失效，需换用证书透明度（CRT.sh）等被动方式发现子域名。
+
+需要我对这个目标做更深层次的被动分析吗（如证书透明度日志查询、JS 端点提取等）？
+---
+
+## ✅ 被动侦察完成 — demo.testfire.net
+
+报告已保存至 
+`report_demo.testfire.net_20260508_155239.md`。以下是核心发现汇总：
+
+### 📋 侦察概要
+
+| 项目 | 结果 |
+|------|------|
+| **DNS A 记录** | `198.18.223.82` |
+| **HTTP 状态** | 200 OK（但被中间设备拦截） |
+| **安全头评分** | **0/10** ❌ |
+| **存活子域名** | 无（泛解析过滤 2000+） |
+| **Web 服务器** | Apache-Coyote/1.1 (Tomcat) |
+| **注册商** | Amazon Registrar, Inc. |
+| **DNS 托管** | Akamai (8 台 NS) |
+
+### 🔑 关键发现
+
+1. **DNS 指向 RFC 2544 保留地址** — `198.18.223.82` 
+是网络基准测试保留段，说明该域名被本地配置/VPN/代理拦截，**实际服务不可直接触达
+**。这也是历史访问报 403 和连接错误的根因。
+
+2. **安全配置为零** — 全部 10 
+项安全头均缺失，攻击者可轻松实施点击劫持、XSS、MIME 嗅探等攻击。
+
+3. **Server 头泄露技术栈** — `Apache-Coyote/1.1` 明确暴露了后端为 **Apache 
+Tomcat**（Java 环境）。
+
+4. **Wildcard DNS 阻止子域名枚举** — 泛解析使 DNS 
+爆破失效，需换用证书透明度（CRT.sh）等被动方式发现子域名。
+
+需要我对这个目标做更深层次的被动分析吗（如证书透明度日志查询、JS 端点提取等）？
+
