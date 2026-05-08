@@ -480,17 +480,51 @@ def _parse_cli_args() -> dict[str, Any]:
     """解析顶层 CLI 参数（不抢占 / 命令）。
 
     支持：
-      --yolo / -y  : 启动时即进入 YOLO 模式（CI/非交互场景必备，issue #6）
-      --help / -h  : 提示用法
+      --yolo / -y                  : 启动即 YOLO 模式（issue #6）
+      --target / -t <url|domain>   : issue #8 一键侦察目标
+      --mode <recon|scan|full>     : issue #8 侦察强度，默认 recon
+      --help / -h                  : 提示用法
     """
-    args = {"yolo": False}
+    from agent.recon_modes import VALID_MODES
+
+    args: dict[str, Any] = {"yolo": False, "target": None, "mode": "recon"}
     argv = sys.argv[1:]
     if any(a in ("--help", "-h") for a in argv):
-        print("用法: python main.py [--yolo|-y]")
-        print("  --yolo, -y    启动即跳过审批（适合 CI / 非交互终端）")
+        print("用法: python main.py [--yolo|-y] [-t <target> [--mode <recon|scan|full>]]")
+        print("  --yolo, -y           启动即跳过审批（CI / 非交互终端）")
+        print("  --target, -t URL     一次性侦察该目标，跑完即退出（issue #8）")
+        print(f"  --mode MODE          侦察强度: {' | '.join(VALID_MODES)}（默认 recon）")
         sys.exit(0)
-    if any(a in ("--yolo", "-y") for a in argv):
-        args["yolo"] = True
+
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("--yolo", "-y"):
+            args["yolo"] = True
+        elif a in ("--target", "-t"):
+            if i + 1 >= len(argv):
+                print("错误: --target/-t 需要参数", file=sys.stderr)
+                sys.exit(2)
+            args["target"] = argv[i + 1]
+            i += 1
+        elif a == "--mode":
+            if i + 1 >= len(argv):
+                print("错误: --mode 需要参数", file=sys.stderr)
+                sys.exit(2)
+            mode = argv[i + 1]
+            if mode not in VALID_MODES:
+                print(
+                    f"错误: --mode 必须是 {' | '.join(VALID_MODES)}（当前: {mode}）",
+                    file=sys.stderr,
+                )
+                sys.exit(2)
+            args["mode"] = mode
+            i += 1
+        i += 1
+
+    if args["mode"] != "recon" and args["target"] is None:
+        print("错误: --mode 需配合 --target/-t 使用", file=sys.stderr)
+        sys.exit(2)
     return args
 
 
@@ -515,11 +549,16 @@ async def main() -> None:
     model = general.get("default_model", "deepseek/deepseek-chat")
     approval_mode = general.get("approval_mode", True)
 
-    # CLI --yolo 或 stdin 非 TTY（CI/pipe）：自动跳过审批，避免卡死（issue #6）
+    # CLI --yolo / --target / stdin 非 TTY：自动跳过审批，避免卡死（issue #6 / #8）
     is_non_tty = not sys.stdin.isatty()
-    if cli_args["yolo"] or is_non_tty:
+    is_oneshot = cli_args.get("target") is not None
+    if cli_args["yolo"] or is_non_tty or is_oneshot:
         if approval_mode:
-            reason = "--yolo CLI flag" if cli_args["yolo"] else "non-interactive stdin"
+            reason = (
+                "--yolo CLI flag"
+                if cli_args["yolo"]
+                else ("--target one-shot" if is_oneshot else "non-interactive stdin")
+            )
             log_warning(f"approval_mode=False enforced ({reason})")
         approval_mode = False
     verbose = general.get("verbose", True)
@@ -570,6 +609,29 @@ async def main() -> None:
     )
 
     print_banner(model)
+
+    # issue #8：一键侦察模式 —— 跑完 prompt 即退出，不进入 REPL
+    if cli_args.get("target"):
+        from agent.recon_modes import render_prompt
+
+        oneshot_prompt = render_prompt(cli_args["target"], cli_args["mode"])
+        log_info(f"一键侦察模式 [{cli_args['mode']}] target={cli_args['target']}")
+        try:
+            result = await engine.run(oneshot_prompt)
+            console.print(result)
+        except KeyboardInterrupt:
+            log_warning("任务被用户中断")
+        except Exception as e:
+            log_error(f"一键侦察失败: {e}")
+        finally:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                from tools.browser import close_browser
+
+                await close_browser()
+            file_logger.close()
+        return
 
     # prompt_toolkit 会话（历史 + 补全）
     prompt_session = create_prompt_session()
