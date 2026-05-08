@@ -69,6 +69,10 @@ TOOL_RISK_LEVELS: dict[str, str] = {
     "crawl_site_map": "confirm",
     # 系统信息（本机网络只读查询）
     "net_info": "safe",
+    # 凭据查询（仅返回 placeholder，不暴露明文）→ safe
+    "credentials_lookup": "safe",
+    # 自动登录（修改浏览器会话状态）→ confirm
+    "auth_login": "confirm",
     # block — 高风险，必须确认 + 风险提示
     "subdomain_enum": "block",
     "dir_bruteforce": "block",
@@ -282,9 +286,12 @@ class AgentEngine:
                     continue
 
                 # 执行工具（带超时和重试）
+                # 展开凭据 placeholder 为真值（上面的审批 / ACL / 白名单都已走原始占位符参数）
+                from utils.credentials import expand_placeholders
+                func_args_real = expand_placeholders(func_args) if isinstance(func_args, str) else func_args
                 result = await self.registry.execute(
                     func_name,
-                    func_args,
+                    func_args_real,
                     timeout=self.tool_timeout,
                     max_retries=self.max_retries,
                 )
@@ -509,10 +516,13 @@ class AgentEngine:
                     ui.add_tool_call(func_name, func_args)
 
                 # 执行工具（silent=True: UI 已处理显示）
+                # 展开凭据 placeholder 为真值（UI 显示 / 审批 / ACL 都已走原始占位符参数）
+                from utils.credentials import expand_placeholders
+                func_args_real = expand_placeholders(func_args) if isinstance(func_args, str) else func_args
                 t0 = time.time()
                 result = await self.registry.execute(
                     func_name,
-                    func_args,
+                    func_args_real,
                     timeout=self.tool_timeout,
                     max_retries=self.max_retries,
                     silent=True,

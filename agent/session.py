@@ -58,12 +58,15 @@ async def save_session(messages: list[dict], name: str | None = None) -> str:
         )
         # 清除旧消息
         await db.execute("DELETE FROM messages WHERE session_name = ?", (name,))
-        # 插入新消息
+        # 插入新消息（凭据脱敏：content / tool_calls.arguments 写入前过 scrub）
+        from utils.scrub import scrub
+
         for idx, msg in enumerate(messages):
             tool_calls_json = None
             if "tool_calls" in msg:
                 with contextlib.suppress(TypeError, ValueError):
                     tool_calls_json = json.dumps(msg["tool_calls"], ensure_ascii=False)
+                    tool_calls_json = scrub(tool_calls_json)
 
             await db.execute(
                 "INSERT INTO messages (session_name, idx, role, content, tool_call_id, tool_calls) VALUES (?, ?, ?, ?, ?, ?)",
@@ -71,7 +74,7 @@ async def save_session(messages: list[dict], name: str | None = None) -> str:
                     name,
                     idx,
                     msg.get("role", ""),
-                    msg.get("content", ""),
+                    scrub(msg.get("content", "") or ""),
                     msg.get("tool_call_id", ""),
                     tool_calls_json,
                 ),
