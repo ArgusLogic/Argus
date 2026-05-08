@@ -607,7 +607,10 @@ async def main() -> None:
     api_keys = config.get("api_keys", {})
     api_bases = config.get("api_bases", {})
     security = config.get("security", {})
-    allowed_domains = security.get("allowed_domains", [])
+    # v2: 默认非严格授权 — strict_authorization=false 时 engine 层域名白名单不生效
+    # 仅当用户显式开 [security].strict_authorization=true 时 allowed_domains 才会拦截
+    strict_auth = bool(security.get("strict_authorization", False))
+    allowed_domains = security.get("allowed_domains", []) if strict_auth else []
     tool_allowlist = security.get("tool_allowlist", [])
     tool_blocklist = security.get("tool_blocklist", [])
     require_approval_for = security.get("require_approval_for", [])

@@ -57,7 +57,13 @@ headed = false
 timeout = 30000
 
 [security]
-# 允许扫描的域名白名单。为空则不限制（请确保只扫描授权目标）。
+# ── 授权门 ──────────────────────────────────────────────────────────────────
+# v2 默认 false = 非严格模式：所有目标自动放行，不查 allowed_domains（日常交互推荐）
+# 改 true = 严格模式：vuln_* / dir_bruteforce 等工具会校验目标必须在 allowed_domains
+#                    或 ~/.argus/credentials.toml 内，否则拒绝执行（合规接活儿推荐）
+strict_authorization = false
+
+# 允许扫描的域名白名单（仅当 strict_authorization = true 时生效）
 # 示例: allowed_domains = ["example.com", "testsite.local"]
 allowed_domains = []
 # 截图保存目录

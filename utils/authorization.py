@@ -1,14 +1,18 @@
-"""vuln_scan 工具的授权门：只有"已声明授权"的目标才能跑漏洞探测。
+"""vuln_scan 工具的授权门——**默认放行**，可通过 config 开严格模式。
 
-判定逻辑（命中任一即放行）：
-  1. URL 的 host 命中 config.toml [security] allowed_domains
-  2. URL 的 host 命中 ~/.argus/credentials.toml 的 [targets.*]
-     （能给出登录凭据 = 用户对该目标拥有授权）
+策略（v2）：
+  默认 [security].strict_authorization = false：
+    所有目标自动放行。LLM 想扫什么扫什么，由用户对目标合法性自负其责。
+  严格模式 [security].strict_authorization = true：
+    走原"双路授权门"——命中任一才放行：
+      路径 1: host 命中 config.toml [security].allowed_domains
+      路径 2: host 命中 ~/.argus/credentials.toml [targets.*]（凭据持有 = 授权证明）
+    用于合规咨询 / 红蓝对抗 / 多人共享 Argus 时强约束目标范围。
 
-返回 (allowed: bool, reason: str)。reason 给 LLM/用户清晰提示如何放行。
+返回 (allowed: bool, reason: str)。reason 提供给 LLM / 审计日志。
 
-⚠ 这是 vuln_scan 系列工具的最终守门员；engine 层的 _check_domain_whitelist
-不一定校验所有 vuln_* 工具（参数名各异），所以必须在工具内部再核对一次。
+历史背景：v1 默认严格，每次新目标都要改 config.toml，交互体验差；v2 翻转默认，
+代码护栏保留，开关一翻即恢复严格（无破坏性删除）。
 """
 
 from __future__ import annotations
@@ -25,12 +29,31 @@ def _extract_host(url: str) -> str:
         return ""
 
 
+def _is_strict_mode() -> bool:
+    """读取 config.toml [security].strict_authorization；默认 False（放行）。"""
+    try:
+        from utils.config import get_section
+
+        sec = get_section("security")
+        return bool(sec.get("strict_authorization", False))
+    except Exception:
+        return False
+
+
 def is_authorized_target(url: str) -> tuple[bool, str]:
-    """判断 url 的目标主机是否被授权进行漏洞探测。"""
+    """判断 url 的目标主机是否被授权进行漏洞探测。
+
+    默认放行（v2 行为）；仅当 [security].strict_authorization=true 时才走双路授权门。
+    """
     host = _extract_host(url)
     if not host:
         return False, f"无法从 URL 解析 host: {url!r}"
 
+    # 默认放行模式
+    if not _is_strict_mode():
+        return True, f"host {host!r} 已放行（strict_authorization=false，默认非严格模式）"
+
+    # ── 严格模式 ──
     # 路径 1：config.toml [security] allowed_domains
     try:
         from utils.config import get_section
@@ -63,7 +86,8 @@ def is_authorized_target(url: str) -> tuple[bool, str]:
 
     return (
         False,
-        f"目标 {host!r} 未授权进行漏洞探测。请二选一：\n"
-        f"  ① 在 config.toml [security] 添加 allowed_domains = [{host!r}]\n"
-        f"  ② 在 ~/.argus/credentials.toml 添加 [targets.{host!r}] 节（证明持有该目标凭据）",
+        f"目标 {host!r} 未授权（严格模式）。请三选一：\n"
+        f"  ① config.toml [security].strict_authorization = false  （关闭严格模式，最常用）\n"
+        f"  ② config.toml [security].allowed_domains 加 {host!r}\n"
+        f"  ③ ~/.argus/credentials.toml 加 [targets.{host!r}] 节（证明持有凭据）",
     )

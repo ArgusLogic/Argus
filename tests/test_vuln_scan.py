@@ -270,18 +270,34 @@ async def test_all_four_tools_block_risk() -> None:
 # ─── authorization 路径 ────────────────────────────────────────────────────
 
 
-async def test_authorization_via_allowed_domains(tmp_path) -> None:
-    """命中 config.toml [security] allowed_domains 即放行。"""
+async def test_authorization_default_non_strict_allows_anything(tmp_path) -> None:
+    """v2 默认行为：strict_authorization 未配置 / 为 false 时所有目标自动放行。"""
     from utils import authorization, config
-    cfg = {"security": {"allowed_domains": ["allowed.example"]}}
+    cfg = {"security": {"allowed_domains": []}}  # 不含 strict_authorization
+    with patch.object(config, "get_config", lambda: cfg):
+        ok, reason = authorization.is_authorized_target("http://random.example.com/x")
+    assert ok is True
+    assert "已放行" in reason or "strict_authorization=false" in reason
+
+
+async def test_authorization_strict_mode_via_allowed_domains(tmp_path) -> None:
+    """严格模式下命中 config.toml [security] allowed_domains 即放行。"""
+    from utils import authorization, config
+    cfg = {
+        "security": {
+            "strict_authorization": True,
+            "allowed_domains": ["allowed.example"],
+        }
+    }
     with patch.object(config, "get_config", lambda: cfg):
         ok, reason = authorization.is_authorized_target("http://allowed.example/x")
     assert ok is True
     assert "allowed.example" in reason
+    assert "allowed_domains" in reason
 
 
-async def test_authorization_via_credentials(tmp_path) -> None:
-    """命中 credentials.toml [targets.*] 也算授权。"""
+async def test_authorization_strict_mode_via_credentials(tmp_path) -> None:
+    """严格模式下命中 credentials.toml [targets.*] 也算授权。"""
     from utils import authorization, credentials
     creds_path = tmp_path / "credentials.toml"
     creds_path.write_text(
@@ -290,21 +306,29 @@ async def test_authorization_via_credentials(tmp_path) -> None:
     )
     with patch.object(credentials, "DEFAULT_CRED_PATH", creds_path):
         credentials.reset_cache()
-        # 同时清空 allowed_domains 走凭据路径
         from utils import config
-        with patch.object(config, "get_config", lambda: {"security": {"allowed_domains": []}}):
+        with patch.object(
+            config,
+            "get_config",
+            lambda: {"security": {"strict_authorization": True, "allowed_domains": []}},
+        ):
             ok, reason = authorization.is_authorized_target("http://internal.example/api")
     assert ok is True
     assert "credentials.toml" in reason
 
 
-async def test_authorization_unauthorized_clear_message(tmp_path) -> None:
+async def test_authorization_strict_mode_unauthorized_clear_message(tmp_path) -> None:
+    """严格模式 + 不在白名单 → 拒绝，错误信息含三种放行办法。"""
     from utils import authorization, config, credentials
-    with patch.object(config, "get_config", lambda: {"security": {"allowed_domains": []}}), \
-         patch.object(credentials, "DEFAULT_CRED_PATH", tmp_path / "noexist.toml"):
+    with patch.object(
+        config,
+        "get_config",
+        lambda: {"security": {"strict_authorization": True, "allowed_domains": []}},
+    ), patch.object(credentials, "DEFAULT_CRED_PATH", tmp_path / "noexist.toml"):
         credentials.reset_cache()
         ok, reason = authorization.is_authorized_target("http://random.example/x")
     assert ok is False
     assert "未授权" in reason
-    assert "config.toml" in reason  # 提示如何放行
+    assert "strict_authorization" in reason  # 提示可关闭严格
+    assert "allowed_domains" in reason
     assert "credentials.toml" in reason
