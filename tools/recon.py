@@ -392,22 +392,33 @@ async def port_scan(
     },
 )
 async def whois_lookup(domain: str) -> str:
-    domain = domain.strip().rstrip(".")
-    api_url = f"https://whois.freeaiapi.xyz/?name={domain}&lang=zh"
+    """查询域名注册信息。
 
+    issue #16：优先 RDAP（ICANN 官方、免费、稳定），失败时退回旧 freeaiapi 兜底。
+    """
+    domain = domain.strip().rstrip(".")
+
+    # 主路径：RDAP
+    from tools._rdap import format_rdap_summary, lookup_rdap
+
+    parsed = await lookup_rdap(domain)
+    if parsed:
+        summary = format_rdap_summary(parsed)
+        return f"WHOIS / RDAP 信息 ({domain}):\n{summary}"
+
+    # Fallback：旧 freeaiapi（短超时，挂了不阻塞）
+    api_url = f"https://whois.freeaiapi.xyz/?name={domain}&lang=zh"
     try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(api_url)
             if resp.status_code != 200:
-                return f"WHOIS 查询失败 (HTTP {resp.status_code})"
-
+                return f"WHOIS 查询失败：RDAP 不可达，旧 API 返回 HTTP {resp.status_code}"
             data = resp.json()
-            if not data:
-                return f"未查询到 {domain} 的 WHOIS 信息"
-
-            return f"WHOIS 信息 ({domain}):\n{truncate(json.dumps(data, ensure_ascii=False, indent=2), 4000)}"
+            if not data or data.get("status") == "error":
+                return f"WHOIS 查询失败：RDAP 不可达，旧 API 返回 error（{domain}）"
+            return f"WHOIS 信息 ({domain}, fallback):\n{truncate(json.dumps(data, ensure_ascii=False, indent=2), 4000)}"
     except Exception as e:
-        return f"WHOIS 查询失败: {e}"
+        return f"WHOIS 查询失败：所有上游都不可用（{e}）"
 
 
 # ─── HTTP 安全头分析 ──────────────────────────────────────────────────────────
