@@ -241,8 +241,6 @@ async def _interactive_model_select(
         full_screen=False,
     )
 
-    import contextlib
-
     with contextlib.suppress(KeyboardInterrupt, EOFError):
         await app.run_async()
 
@@ -616,8 +614,6 @@ async def main() -> None:
         except Exception as e:
             log_error(f"一键侦察失败: {e}")
         finally:
-            import contextlib
-
             with contextlib.suppress(Exception):
                 from tools.browser import close_browser
 
@@ -720,8 +716,6 @@ async def main() -> None:
             log_error(f"执行异常: {e}")
 
     # 清理资源
-    import contextlib
-
     with contextlib.suppress(Exception):
         from tools.browser import close_browser
 

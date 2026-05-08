@@ -15,7 +15,7 @@ from agent.session_index import SessionIndex
 from agent.skills import SkillManager
 from agent.subagent import SubAgentOrchestrator, set_global_orchestrator
 from agent.tool_registry import ToolRegistry
-from utils.logger import console, log_agent, log_error, log_info, log_warning
+from utils.logger import log_agent, log_error, log_info, log_warning
 
 # ─── 工具安全分级 ─────────────────────────────────────────────────────────────
 # safe:    只读/无副作用，自动执行
@@ -133,6 +133,8 @@ class AgentEngine:
         self.messages: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT}]
         # 冻结注入标记：MEMORY/USER 块只在首轮注入一次，保 prefix cache
         self._memory_injected = False
+        # 本进程审批跳过集合（"Yes, and don't ask again this session for: X"）
+        self._session_approval_skips: set[str] = set()
 
         # 子代理编排器：注入全局，供 delegate_subagents 工具使用
         self.subagent_orchestrator = SubAgentOrchestrator(
@@ -747,23 +749,34 @@ class AgentEngine:
         return True
 
     async def _ask_approval(self, name: str, args: str, risk: str) -> bool:
-        """请求用户确认是否执行操作。risk='block' 时显示额外风险提示。"""
-        if risk == "block":
-            hint = BLOCK_RISK_HINTS.get(name, "此操作可能对目标产生可检测的影响")
-            console.print("\n[error][⚠ 高风险操作][/error]")
-            console.print(f"    风险: {hint}")
-        else:
-            console.print("\n[warning][!] 需要确认执行:[/warning]")
+        """请求用户确认是否执行操作。
 
-        console.print(f"    工具: [bold]{name}[/bold]")
-        try:
-            parsed = json.loads(args)
-            console.print(f"    参数: {json.dumps(parsed, ensure_ascii=False, indent=2)}")
-        except Exception:
-            console.print(f"    参数: {args}")
+        - 工具名命中本 session skip 集合 → 直接通过，不再弹窗
+        - 否则弹 Claude Code 风格审批面板（prompt_toolkit），ESC 等价 No
+        - 选 "Yes, and don't ask again this session for: X" → 加入 skip 集合
+        """
+        if name in self._session_approval_skips:
+            return True
 
-        try:
-            answer = input("    执行? (y/n): ").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            return False
-        return answer in ("y", "yes", "")
+        from agent.approval_ui import ApprovalChoice, prompt_for_approval
+
+        # 取最近一句 user 消息作为面板标题（让用户记得自己刚才让 agent 做啥）
+        last_user = ""
+        for m in reversed(self.messages):
+            if m.get("role") == "user":
+                last_user = str(m.get("content") or "")
+                break
+
+        risk_hint = BLOCK_RISK_HINTS.get(name) if risk == "block" else None
+        choice = await prompt_for_approval(
+            user_request=last_user,
+            tool_name=name,
+            tool_args=args,
+            risk_level=risk,
+            risk_hint=risk_hint,
+        )
+        if choice == ApprovalChoice.APPROVE_SKIP_SESSION:
+            self._session_approval_skips.add(name)
+            log_info(f"本 session 起跳过 [{name}] 审批")
+            return True
+        return choice == ApprovalChoice.APPROVE
