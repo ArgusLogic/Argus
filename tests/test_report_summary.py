@@ -195,6 +195,175 @@ def test_render_empty_returns_empty_string() -> None:
     assert build_executive_summary() == ""
 
 
+# ──────────────────────────────────────────────────────────────────────────
+# Stage 1 新增信号：setup.php / phpinfo / swagger / graphql 等
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_scan_directories_setup_php_critical() -> None:
+    """/setup.php 是 critical，应能被识别且排在 whois_expiring_soon 之前。"""
+    signals = collect_signals(
+        directories="  [200] /setup.php  (2100 bytes)",
+        whois_info="Expiration: 2026-06-01",
+    )
+    keys = [s["key"] for s in signals]
+    assert "exposed_setup_php" in keys
+    sig = next(s for s in signals if s["key"] == "exposed_setup_php")
+    assert sig["severity"] == "critical"
+    # 必须排在 whois_expiring_soon（medium）之前
+    assert keys.index("exposed_setup_php") < keys.index("whois_expiring_soon")
+
+
+def test_scan_directories_install_php_critical() -> None:
+    signals = collect_signals(directories="  [200] /install.php")
+    assert any(s["key"] == "exposed_setup_php" and s["severity"] == "critical" for s in signals)
+
+
+def test_scan_directories_phpinfo_high() -> None:
+    signals = collect_signals(directories="  [200] /phpinfo.php  (8800 bytes)")
+    assert any(s["key"] == "exposed_phpinfo" and s["severity"] == "high" for s in signals)
+
+
+def test_scan_directories_swagger_unauthenticated() -> None:
+    for path in ("/swagger/index.html", "/api-docs", "/openapi.json", "/v2/api-docs"):
+        signals = collect_signals(directories=f"  [200] {path}  (9000 bytes)")
+        assert any(s["key"] == "swagger_unauthenticated" for s in signals), f"{path} 未命中"
+        sig = next(s for s in signals if s["key"] == "swagger_unauthenticated")
+        assert sig["severity"] == "high"
+
+
+def test_scan_directories_graphql_endpoint() -> None:
+    signals = collect_signals(directories="  [200] /graphql")
+    assert any(s["key"] == "graphql_endpoint_open" and s["severity"] == "medium" for s in signals)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Stage 1 新增信号：_scan_headers 深度扫描（JSESSIONID / CORS / weak server）
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_scan_headers_jsessionid_insecure() -> None:
+    headers_text = "Set-Cookie: JSESSIONID=abc123; Path=/"  # 缺 Secure + HttpOnly
+    signals = collect_signals(headers=headers_text)
+    sig = next((s for s in signals if s["key"] == "jsessionid_insecure"), None)
+    assert sig is not None
+    assert sig["severity"] == "high"
+    assert "Secure" in sig["evidence"]
+    assert "HttpOnly" in sig["evidence"]
+
+
+def test_scan_headers_jsessionid_with_attrs_no_signal() -> None:
+    """带 Secure 和 HttpOnly 的 JSESSIONID 不应触发。"""
+    headers_text = "Set-Cookie: JSESSIONID=abc; Secure; HttpOnly; SameSite=Lax"
+    signals = collect_signals(headers=headers_text)
+    assert not any(s["key"] == "jsessionid_insecure" for s in signals)
+
+
+def test_scan_headers_cors_wildcard_with_credentials() -> None:
+    headers_text = (
+        "Access-Control-Allow-Origin: *\n"
+        "Access-Control-Allow-Credentials: true\n"
+    )
+    signals = collect_signals(headers=headers_text)
+    sig = next((s for s in signals if s["key"] == "open_cors_wildcard"), None)
+    assert sig is not None
+    assert sig["severity"] == "high"
+
+
+def test_scan_headers_cors_wildcard_without_credentials_no_signal() -> None:
+    """ACAO: * 单独出现不应触发（无凭据下 * 是相对安全的）。"""
+    headers_text = "Access-Control-Allow-Origin: *\n"
+    signals = collect_signals(headers=headers_text)
+    assert not any(s["key"] == "open_cors_wildcard" for s in signals)
+
+
+def test_scan_headers_weak_server_version_tomcat() -> None:
+    headers_text = "⚠ Server 头泄露: Apache-Coyote/1.1"
+    signals = collect_signals(headers=headers_text)
+    # server_disclosure (medium) 和 weak_server_version (medium) 都应命中
+    keys = {s["key"] for s in signals}
+    assert "weak_server_version" in keys
+    assert "server_disclosure" in keys
+
+
+def test_scan_headers_permissions_policy_missing() -> None:
+    headers_text = "✗ Permissions-Policy — 缺失"
+    signals = collect_signals(headers=headers_text)
+    assert any(s["key"] == "missing_permissions_policy" and s["severity"] == "low" for s in signals)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Stage 1 _scan_body_hints：默认凭据 / GraphQL introspection
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_body_hints_default_credentials_admin() -> None:
+    body = "默认凭据：admin:password（测试用）"
+    signals = collect_signals(body_hints=body)
+    assert any(s["key"] == "default_credentials_hinted" and s["severity"] == "high" for s in signals)
+
+
+def test_body_hints_no_credentials_in_url_context() -> None:
+    """URL 里出现 user:pass@host 不应触发（URL 语法不是真的凭据泄漏）。"""
+    body = "示例: https://user:password@example.com/"
+    signals = collect_signals(body_hints=body)
+    assert not any(s["key"] == "default_credentials_hinted" for s in signals)
+
+
+def test_body_hints_graphql_introspection_medium() -> None:
+    body = '{"data":{"__schema":{"types":[{"name":"Query"}]}}}'
+    signals = collect_signals(body_hints=body)
+    assert any(s["key"] == "graphql_introspection" and s["severity"] == "medium" for s in signals)
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Stage 1 whois_expiring_soon 权重调整：medium 不再压倒 high 级安全头
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_whois_expiring_medium_does_not_override_high_security() -> None:
+    """90 天到期被调为 medium 后，不应排在 HSTS 缺失（high）之前。"""
+    future = "2026-06-15"  # 距现在 < 90 天
+    signals = collect_signals(
+        headers="✗ HSTS (Strict-Transport-Security) — 缺失\n安全头评分: 0/10",
+        whois_info=f"Expiration: {future}",
+    )
+    keys = [s["key"] for s in signals]
+    if "whois_expiring_soon" in keys and "missing_hsts" in keys:
+        # missing_hsts 是 high，whois_expiring_soon 现在是 medium → HSTS 应在前
+        assert keys.index("missing_hsts") < keys.index("whois_expiring_soon")
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Stage 1 端到端：用户 session 证据重现
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def test_end_to_end_dvwa_like_setup_php_wins_top_1() -> None:
+    """复刻 DVWA 场景：同份报告里有 X-Frame 缺失 + /setup.php + 3306 MySQL。
+    Top-1 必须是 /setup.php（critical）而非 X-Frame（medium）。"""
+    signals = collect_signals(
+        headers="✗ X-Frame-Options — 缺失\n安全头评分: 0/10",
+        directories="  [200] /setup.php  (1980 bytes)",
+        open_ports="  3306/tcp  open  mysql",
+    )
+    # Top-1 必须是 critical 级
+    assert signals[0]["severity"] == "critical"
+    assert signals[0]["key"] in {"exposed_setup_php", "port_db_exposed_3306"}
+
+
+def test_end_to_end_altoroj_like_swagger_wins_over_whois() -> None:
+    """复刻 AltoroJ 场景：Swagger 无认证 + 域名 75 天到期。Swagger (high) 应排在 whois (medium) 之前。"""
+    signals = collect_signals(
+        directories="  [200] /swagger/index.html  (9400 bytes)",
+        whois_info="Expiration: 2026-06-15",  # 假设距今 38 天
+    )
+    keys = [s["key"] for s in signals]
+    assert "swagger_unauthenticated" in keys
+    if "whois_expiring_soon" in keys:
+        assert keys.index("swagger_unauthenticated") < keys.index("whois_expiring_soon")
+
+
 def test_top_n_truncates() -> None:
     signals = [
         {"key": f"k{i}", "severity": "high", "risk": f"R{i}", "evidence": "E", "suggestion": "S"}

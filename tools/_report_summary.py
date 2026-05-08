@@ -6,17 +6,26 @@
   - missing_hsts          high   缺 HSTS         开启 max-age>=31536000
   - missing_csp           medium 缺 CSP          至少 default-src 'self'
   - missing_xfo           medium 缺 X-Frame-Opt  设置 SAMEORIGIN/DENY
+  - missing_permissions_policy low 缺 Permissions-Policy
   - server_disclosure     medium Server 头泄漏   隐藏中间件版本
+  - weak_server_version   medium Server 头含已知 EOL 版本
   - powered_by_disclosure low    X-Powered-By    隐藏框架版本
+  - jsessionid_insecure   high   JSESSIONID 无 Secure/HttpOnly
+  - open_cors_wildcard    high   ACAO:* + ACAC:true 高危组合
   - dir_listing           high   目录索引开启   关闭 Apache Indexes
   - admin_panel_open      high   /admin 200/403  限制访问 + 强密码 + 2FA
+  - exposed_setup_php     critical /setup.php 暴露（已安装应删除）
+  - exposed_phpinfo       high   /phpinfo.php 暴露 泄漏完整 PHP 环境
+  - swagger_unauthenticated high  /swagger /api-docs 无认证
+  - graphql_introspection medium /graphql 启用 introspection
   - exposed_git           critical .git 泄漏     立即移除 .git/config
   - exposed_env           critical .env 泄漏     立即移除并轮换密钥
   - phpmyadmin_open       high   pma 暴露        IP 白名单 + 认证
+  - default_credentials_hinted high 页面含 admin:password 等默认凭据
   - cleartext_http        medium 仅 HTTP         强制跳转 HTTPS
   - low_security_score    high   安全评分 ≤3/10  补齐缺失安全头
   - cdn_exposure          info   CDN 兜底       (无操作)
-  - whois_expiring_soon   high   域名 90 天内到期 续费
+  - whois_expiring_soon   medium 域名 90 天内到期 续费（不应压倒核心安全问题）
   - whois_expired         critical 域名已过期    立即续费
   - port_db_exposed       critical 数据库端口对外 防火墙限制访问
   - port_admin_exposed    high   管理端口对外    SSH key + 限源 IP
@@ -55,6 +64,18 @@ _SECURITY_HEADERS_INFO = (
      "防止点击劫持；设置 `X-Frame-Options: SAMEORIGIN` 或 `DENY`"),
     ("X-Content-Type-Options", "missing_xcto", "low", "X-Content-Type-Options 缺失",
      "防止 MIME sniff 攻击；设置 `X-Content-Type-Options: nosniff`"),
+    ("Permissions-Policy", "missing_permissions_policy", "low", "Permissions-Policy 缺失",
+     "通过 `Permissions-Policy` 收紧浏览器特性（摄像头/麦克风/地理等），最小化权限"),
+)
+
+# 已知 EOL / 带风险的 Server 版本片段（命中即 weak_server_version）
+_WEAK_SERVER_VERSION_PATTERNS = (
+    re.compile(r"\bApache-Coyote/\d"),            # Tomcat 6/7 老版本
+    re.compile(r"\bApache/2\.[012]\b"),           # Apache 2.0-2.2 EOL
+    re.compile(r"\bnginx/1\.(?:[0-9]|1[0-6])\b"),  # nginx < 1.17 已 EOL
+    re.compile(r"\bMicrosoft-IIS/[678]\b"),       # IIS 6/7/8 EOL
+    re.compile(r"\bOpenSSL/0\.9\."),              # OpenSSL 0.9.x
+    re.compile(r"\bPHP/[45]\b"),                  # PHP 4/5 EOL
 )
 
 
@@ -125,6 +146,59 @@ def _scan_headers(headers_text: str) -> list[dict]:
                 }
             )
 
+    # 弱 Server 版本（EOL / 已知版本泄露）
+    for pat in _WEAK_SERVER_VERSION_PATTERNS:
+        m = pat.search(headers_text)
+        if m:
+            out.append(
+                {
+                    "key": "weak_server_version",
+                    "severity": "medium",
+                    "risk": "Server 头暴露已 EOL / 过旧的中间件版本",
+                    "evidence": f"`{m.group(0)}`",
+                    "suggestion": "升级到受支持的版本；并在反代层隐藏具体版本号",
+                }
+            )
+            break  # 只报一条避免刷屏
+
+    # JSESSIONID 缺少 Secure / HttpOnly
+    # 命中条件：同一行出现 JSESSIONID，但同行或后接 chunk 不含 Secure / HttpOnly
+    for line in headers_text.splitlines():
+        low = line.lower()
+        if "jsessionid" in low:
+            missing = []
+            if "secure" not in low:
+                missing.append("Secure")
+            if "httponly" not in low:
+                missing.append("HttpOnly")
+            if missing:
+                out.append(
+                    {
+                        "key": "jsessionid_insecure",
+                        "severity": "high",
+                        "risk": "JSESSIONID 缺少关键安全属性",
+                        "evidence": f"未设置: {' / '.join(missing)}",
+                        "suggestion": "服务器配置下发时带 `Secure; HttpOnly; SameSite=Lax`",
+                    }
+                )
+            break
+
+    # CORS 高危组合：ACAO:* + ACAC:true
+    acao_star = re.search(r"access-control-allow-origin[:：]\s*\*", headers_text, re.IGNORECASE)
+    acac_true = re.search(
+        r"access-control-allow-credentials[:：]\s*true", headers_text, re.IGNORECASE
+    )
+    if acao_star and acac_true:
+        out.append(
+            {
+                "key": "open_cors_wildcard",
+                "severity": "high",
+                "risk": "CORS 高危组合：通配符 + 允许凭据",
+                "evidence": "`Access-Control-Allow-Origin: *` 与 `Access-Control-Allow-Credentials: true` 同时出现",
+                "suggestion": "改为显式白名单 Origin；不应允许任意源携凭据",
+            }
+        )
+
     return out
 
 
@@ -171,6 +245,37 @@ _DIR_PATTERNS = (
         "critical",
         "备份文件对外暴露",
         "**立即** 移除；扫描历史 commit 是否泄漏敏感信息",
+    ),
+    (
+        re.compile(r"\[200\][^\n]*/(?:setup|install)\.php\b"),
+        "exposed_setup_php",
+        "critical",
+        "安装/初始化脚本对外暴露 (setup.php / install.php)",
+        "**立即** 删除或访问限制；已安装站点不应保留此类脚本",
+    ),
+    (
+        re.compile(r"\[200\][^\n]*/phpinfo\.php\b", re.IGNORECASE),
+        "exposed_phpinfo",
+        "high",
+        "phpinfo.php 对外暴露",
+        "删除文件；它会完整泄漏 PHP / 服务器 / 扩展配置",
+    ),
+    (
+        re.compile(
+            r"\[200\][^\n]*/(?:swagger(?:[/\-]|\.json|$)|api-docs|openapi\.json|v2/api-docs)",
+            re.IGNORECASE,
+        ),
+        "swagger_unauthenticated",
+        "high",
+        "Swagger / OpenAPI 文档无认证暴露",
+        "外网不应直接暴露 API 文档；加认证或迁到内网管理通道",
+    ),
+    (
+        re.compile(r"\[200\][^\n]*/graphql\b", re.IGNORECASE),
+        "graphql_endpoint_open",
+        "medium",
+        "GraphQL 端点对外开放",
+        "核查是否应公开；生产环境建议禁用 introspection",
     ),
 )
 
@@ -301,8 +406,9 @@ def _scan_whois(whois_text: str) -> list[dict]:
         elif days <= 90:
             out.append(
                 {
+                    # severity 调为 medium：90 天内到期不应压倍核心安全问题（high）
                     "key": "whois_expiring_soon",
-                    "severity": "high",
+                    "severity": "medium",
                     "risk": f"域名 {days} 天内到期",
                     "evidence": f"WHOIS expiration: {expiry.date().isoformat()}",
                     "suggestion": "尽快续费；启用注册商自动续费功能",
@@ -317,6 +423,59 @@ def _scan_whois(whois_text: str) -> list[dict]:
 # ──────────────────────────────────────────────────────────────────────────
 
 
+# 默认凭据探针：页面文本 / 注释 / JS 内命中表示有默认凭据
+_DEFAULT_CRED_PATTERNS = (
+    re.compile(r"\b(?:admin|user|guest|test|root)\s*[:/\s]\s*(?:admin|password|123456|user|guest)\b", re.IGNORECASE),
+    re.compile(r"\b(?:username|user)\s*[:=]\s*['\"]?admin['\"]?[^\n]{0,80}\b(?:password|passwd|pwd)\s*[:=]\s*['\"]?(?:admin|password|123456)", re.IGNORECASE | re.DOTALL),
+)
+
+
+def _scan_body_hints(body_text: str) -> list[dict]:
+    """掃描页面文本 / 表单 / JS / 补充说明等 body 类内容。
+
+    目前检测：默认凭据提示 + GraphQL introspection。
+    """
+    if not body_text:
+        return []
+    out: list[dict] = []
+
+    # 默认凭据探针
+    for pat in _DEFAULT_CRED_PATTERNS:
+        m = pat.search(body_text)
+        if m:
+            snippet = m.group(0).strip()
+            # 过滤 URL basic-auth 形式（http://user:pass@host）—— 不是真实凭据泄漏
+            ctx_start = max(0, m.start() - 10)
+            ctx_end = min(len(body_text), m.end() + 5)
+            ctx = body_text[ctx_start:ctx_end]
+            if "://" in ctx or "@" in body_text[m.end():m.end() + 3]:
+                continue
+            out.append(
+                {
+                    "key": "default_credentials_hinted",
+                    "severity": "high",
+                    "risk": "页面或源码漏露默认凭据",
+                    "evidence": f"`{snippet[:60]}`",
+                    "suggestion": "上线前必须修改默认凭据并删除文档中暴露的样例账号",
+                }
+            )
+            break
+
+    # GraphQL introspection 启用（响应体出现 __schema / __type）
+    if re.search(r"\b__schema\b|\b__type\b", body_text):
+        out.append(
+            {
+                "key": "graphql_introspection",
+                "severity": "medium",
+                "risk": "GraphQL introspection 在生产环境启用",
+                "evidence": "响应体出现 `__schema` / `__type`",
+                "suggestion": "生产环境关闭 introspection；仅内网 / dev 环境开启",
+            }
+        )
+
+    return out
+
+
 def collect_signals(
     dns_info: str = "",
     headers: str = "",
@@ -324,14 +483,20 @@ def collect_signals(
     open_ports: str = "",
     directories: str = "",
     whois_info: str = "",
+    body_hints: str = "",
 ) -> list[dict]:
-    """扫描各 section 文本，返回所有命中的风险信号。"""
+    """扫描各 section 文本，返回所有命中的风险信号。
+
+    ``body_hints``：页面表单 / JS / cookies / additional 等非结构化文本的合并串，
+    用于提取默认凭据 / GraphQL introspection 等需要 body 上下文的信号。
+    """
     signals: list[dict] = []
     signals.extend(_scan_headers(headers))
     signals.extend(_scan_directories(directories))
     signals.extend(_scan_open_ports(open_ports))
     signals.extend(_scan_subdomains(subdomains))
     signals.extend(_scan_whois(whois_info))
+    signals.extend(_scan_body_hints(body_hints))
     # 去重（按 key）
     seen: set[str] = set()
     deduped: list[dict] = []
@@ -369,6 +534,7 @@ def build_executive_summary(
     open_ports: str = "",
     directories: str = "",
     whois_info: str = "",
+    body_hints: str = "",
     top_n: int = 3,
 ) -> str:
     """生成执行摘要的完整 Markdown 块（含标题）。无信号则返空串。"""
@@ -379,5 +545,6 @@ def build_executive_summary(
         open_ports=open_ports,
         directories=directories,
         whois_info=whois_info,
+        body_hints=body_hints,
     )
     return render_top_n(signals, n=top_n)

@@ -96,6 +96,11 @@ async def generate_report(
     try:
         from tools._report_summary import build_executive_summary
 
+        # 把页面类 / 表单 / JS / 补充 等非结构化文本合并成 body_hints，
+        # 用于扫默认凭据 / GraphQL introspection 等需要 body 上下文的信号
+        body_hints_text = "\n".join(
+            s for s in (cookies, links, forms, js_analysis, additional) if s and s.strip()
+        )
         summary_block = build_executive_summary(
             dns_info=dns_info,
             headers=headers,
@@ -103,6 +108,7 @@ async def generate_report(
             open_ports=open_ports,
             directories=directories,
             whois_info=whois_info,
+            body_hints=body_hints_text,
         )
         if summary_block:
             sections.append(summary_block)
