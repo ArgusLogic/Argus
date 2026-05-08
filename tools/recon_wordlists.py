@@ -1,6 +1,15 @@
-"""内置侦察字典：子域名和常用目录路径。避免外部文件依赖。"""
+"""内置侦察字典：子域名和常用目录路径。避免外部文件依赖。
 
-SUBDOMAINS = [
+issue #18：SUBDOMAINS 现在直接复用 SecLists 的 top-2000 子域名字典
+（见 tools/_subdomains_seclists.py）。原来 218 条手动列表保留为
+LEGACY_SUBDOMAINS 仅供参考，新代码不再引用。
+"""
+
+from tools._subdomains_seclists import SECLISTS_TOP2000
+
+SUBDOMAINS = SECLISTS_TOP2000
+
+LEGACY_SUBDOMAINS = [
     "www",
     "mail",
     "ftp",

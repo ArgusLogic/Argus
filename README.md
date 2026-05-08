@@ -3,7 +3,7 @@
 [![CI](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml/badge.svg)](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-481%20passing-green.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-537%20passing-green.svg)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > 基于 LLM 的 CLI 自主侦察 Agent。一句自然语言任务，**44 个内置工具**全程自动调度——浏览器自动化、DevTools 抓包、JS 端点挖掘、SSE 流式捕获、子域名/目录枚举、端口扫描、请求重放，最终产出结构化 Markdown 报告。
@@ -22,7 +22,7 @@
 - **统一 Config 单例** — 所有模块通过 `utils.config` 读 `~/.argus/config.toml`，进程级缓存
 - **per-target 限流** — 子域枚举/目录爆破多代理叠加时不击穿 WAF
 - **Rust 加速骨架** — `argus_native` crate via PyO3，Python fallback 透明
-- **完整工程化** — ruff/mypy/pytest 全绿，**481 测试**，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
+- **完整工程化** — ruff/mypy/pytest 全绿，**537 测试**，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
 
 ## 快速开始
 
@@ -131,10 +131,10 @@ pip install target/wheels/*.whl
 | 工具 | 说明 | 风险 |
 |---|---|:-:|
 | `dns_lookup` | A / AAAA / MX / NS / TXT / CNAME | safe |
-| `whois_lookup` | WHOIS 注册信息 | safe |
+| `whois_lookup` | WHOIS / RDAP 注册信息（RDAP 优先，旧 freeaiapi 兼保底） | safe |
 | `header_analysis` | HTTP 安全头评分（10 项） | safe |
-| `subdomain_enum` | 子域枚举（内置 ~200 字典，支持自定义；per-target 限流） | block |
-| `dir_bruteforce` | 目录枚举（内置 ~130 路径，支持自定义；per-target 限流） | block |
+| `subdomain_enum` | 子域枚举（内置 SecLists top-2000，支持自定义；per-target 限流） | block |
+| `dir_bruteforce` | 目录枚举（内置 ~190 路径，基线校准反 CDN 误报，支持自定义） | block |
 | `port_scan` | 端口扫描（nmap 优先，缺失时自动 TCP connect 兜底 ≤1024 端口） | block |
 </details>
 
@@ -326,7 +326,7 @@ Argus/
 ├── argus_native/                 # Rust crate（可选）
 │   ├── Cargo.toml
 │   └── src/{lib,sanitizer,memory}.rs
-├── tests/                        # 481 测试
+├── tests/                        # 537 测试
 └── .github/workflows/ci.yml      # lint + mypy + pytest matrix + Rust build
 ```
 
@@ -335,7 +335,7 @@ Argus/
 ### 测试
 
 ```bash
-make test                                 # 全部 481 测试
+make test                                 # 全部 537 测试
 pytest tests/test_browser_extras.py -v    # 单文件
 pytest --cov --cov-report=term            # 覆盖率
 ```
