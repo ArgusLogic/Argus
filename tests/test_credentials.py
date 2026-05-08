@@ -32,6 +32,24 @@ def _write_creds(path: Path) -> None:
     )
 
 
+def test_lookup_handles_utf8_bom(tmp_path: Path) -> None:
+    """credentials.toml 带 UTF-8 BOM（PowerShell `Out-File -Encoding utf8` 默认行为）
+    应能正常解析，不应静默退回空字典。回归：D2 AltoroJ run 因 BOM 报"工具解析异常"。
+    """
+    from utils.credentials import lookup
+    creds_path = tmp_path / "credentials.toml"
+    body = (
+        '[targets."example.com"]\n'
+        'username = "u"\n'
+        'password = "p"\n'
+    )
+    creds_path.write_bytes(b"\xef\xbb\xbf" + body.encode("utf-8"))
+    cred = lookup("example.com", path=creds_path)
+    assert cred is not None
+    assert cred["username"] == "u"
+    assert cred["password"] == "p"
+
+
 def test_lookup_returns_none_when_file_missing(tmp_path: Path) -> None:
     from utils.credentials import lookup
     assert lookup("missing.example", path=tmp_path / "noexist.toml") is None

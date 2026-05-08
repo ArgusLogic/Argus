@@ -1,0 +1,161 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · mimo-v2.5-pro                     
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  52 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=http://demo.testfire.net
+[*] Turn 1 | Tokens: ~3297
+[Tool] dns_lookup → DNS 查询结果 (demo.testfire.net):
+  A: 198.18.15.169
+[Tool] whois_lookup → WHOIS 查询失败：RDAP 不可达，旧 API 返回 
+error（testfire.net）
+[Tool] header_analysis → 目标: http://demo.testfire.net (HTTP 200)
+
+已配置 (0):
+
+缺失 (10):
+  ✗ HSTS (Strict-Transport-Security) — 缺失 (强制 HTTPS，防止降级攻击)
+  ✗ CSP (Content-Security-Policy) — 缺失 (限制资源加载来源，防止 XSS)
+  ✗ X-Frame-Options — 缺
+[*]   ▸ subdomain_enum testfire.net: 4% (80/2000)
+[*]   ▸ subdomain_enum testfire.net: 5% (100/2000)
+[*]   ▸ subdomain_enum testfire.net: 10% (200/2000)
+[*]   ▸ subdomain_enum testfire.net: 15% (300/2000)
+[*]   ▸ subdomain_enum testfire.net: 20% (400/2000)
+[*]   ▸ subdomain_enum testfire.net: 25% (500/2000)
+[*]   ▸ subdomain_enum testfire.net: 30% (600/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 35% (700/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 40% (800/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 45% (900/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 50% (1000/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 55% (1100/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 60% (1200/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 65% (1300/2000) · ETA 1s
+[*]   ▸ subdomain_enum testfire.net: 70% (1400/2000) · ETA 0s
+[*]   ▸ subdomain_enum testfire.net: 75% (1500/2000) · ETA 0s
+[*]   ▸ subdomain_enum testfire.net: 80% (1600/2000) · ETA 0s
+[*]   ▸ subdomain_enum testfire.net: 85% (1700/2000) · ETA 0s
+[*]   ▸ subdomain_enum testfire.net: 90% (1800/2000) · ETA 0s
+[*]   ▸ subdomain_enum testfire.net: 95% (1900/2000) · ETA 0s
+[*]   ▸ subdomain_enum testfire.net: 100% (2000/2000) ✓
+[Tool] subdomain_enum → ⚠ 检测到 wildcard DNS (*.testfire.net → 
+198.18.0.0/15)，已过滤 2000 条疑似假阳性
+未发现 testfire.net 的存活子域名（已检测 2000 个）
+[*] Turn 2 | Tokens: ~3826
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 4% (8/190) · ETA 46s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 5% (10/190) · ETA 37s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 10% (19/190) · ETA 22s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 15% (29/190) · ETA 17s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 20% (38/190) · ETA 14s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 25% (48/190) · ETA 12s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 30% (57/190) · ETA 11s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 35% (67/190) · ETA 9s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 40% (76/190) · ETA 8s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 45% (86/190) · ETA 8s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 50% (95/190) · ETA 7s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 55% (105/190) · ETA 6s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 60% (114/190) · ETA 5s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 65% (124/190) · ETA 4s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 70% (133/190) · ETA 4s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 75% (143/190) · ETA 3s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 80% (152/190) · ETA 2s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 85% (162/190) · ETA 2s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 90% (171/190) · ETA 1s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 95% (181/190) · ETA 1s
+[*]   ▸ dir_bruteforce http://demo.testfire.net: 100% (190/190) ✓
+[Tool] dir_bruteforce → 目录枚举 (http://demo.testfire.net) — 发现 1/190:
+  [200] /  (9405 bytes)
+[Tool] port_scan → 未发现 198.18.15.169 的开放端口
+⚠ 目标解析到 198.18.15.169（198.18.0.0/15，RFC2544 基准测试段（IANA 保留））；
+   建议: 该段仅在扫描实验室内可路由；若目标真在此段，请进入对应测试网络
+[*] Turn 3 | Tokens: ~4166
+[Tool] generate_report → 报告已生成并保存: 
+C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_181642.m
+d (2344 字符)
+[*] Turn 4 | Tokens: ~5120
+[Tool] project_save → 项目已保存: testfire-recon
+文件: C:\Users\23725\.argus\projects\testfire-recon.json
+键: target, ip, ip_note, dns, whois, security_headers, subdomains, port_scan, 
+dir_bruteforce, report_path, scan_date, scan_i
+[*] Turn 5 | Tokens: ~5454
+[Agent] ---
+
+## 🔍 侦察完成 — `demo.testfire.net` 中强度报告
+
+### 执行摘要
+
+| 步骤 | 状态 | 关键发现 |
+|------|------|----------|
+| DNS 查询 | ✅ | A → `198.18.15.169`（RFC2544 保留段） |
+| WHOIS 查询 | ❌ | RDAP 不可达，旧 API 也失败 |
+| 安全头分析 | ✅ | **0/10** — 全部 10 项缺失，泄露 `Apache-Coyote/1.1` |
+| 子域名枚举 | ⚠️ | 通配符 DNS，2000 条全部过滤为假阳性 |
+| 目录爆破 | ⚠️ | 仅发现 `/`（200），其余 189 路径无结果 |
+| 端口扫描 | ❌ | IP 属保留段，当前网络不可路由 |
+
+### 🔴 关键风险
+
+1. **安全头评分为零** — 无 HSTS/CSP/X-Frame-Options 等任何防护，易受 
+XSS、点击劫持、降级攻击
+2. **服务器版本泄露** — `Apache-Coyote/1.1` 暴露了 Tomcat 连接器信息
+3. **通配符 DNS** — `*.testfire.net` 全部解析，存在子域名接管风险
+
+### ⚠️ 侦察限制
+
+目标 IP `198.18.15.169` 属于 **RFC2544 保留段**（基准测试地址），HTTP 
+请求可通过浏览器代理访问，但 TCP 
+端口扫描和深度目录爆破因网络不可达而受限。如需完整结果，建议在可直连目标的网络
+环境（VPN/内网）中重新执行。
+
+### 📄 报告文件
+
+```
+C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_181642.m
+d
+```
+
+项目状态已保存为 
+`testfire-recon`，后续可随时加载继续侦察。需要我做进一步的漏洞探测（SQL 
+注入/XSS/CORS）吗？
+---
+
+## 🔍 侦察完成 — `demo.testfire.net` 中强度报告
+
+### 执行摘要
+
+| 步骤 | 状态 | 关键发现 |
+|------|------|----------|
+| DNS 查询 | ✅ | A → `198.18.15.169`（RFC2544 保留段） |
+| WHOIS 查询 | ❌ | RDAP 不可达，旧 API 也失败 |
+| 安全头分析 | ✅ | **0/10** — 全部 10 项缺失，泄露 `Apache-Coyote/1.1` |
+| 子域名枚举 | ⚠️ | 通配符 DNS，2000 条全部过滤为假阳性 |
+| 目录爆破 | ⚠️ | 仅发现 `/`（200），其余 189 路径无结果 |
+| 端口扫描 | ❌ | IP 属保留段，当前网络不可路由 |
+
+### 🔴 关键风险
+
+1. **安全头评分为零** — 无 HSTS/CSP/X-Frame-Options 等任何防护，易受 
+XSS、点击劫持、降级攻击
+2. **服务器版本泄露** — `Apache-Coyote/1.1` 暴露了 Tomcat 连接器信息
+3. **通配符 DNS** — `*.testfire.net` 全部解析，存在子域名接管风险
+
+### ⚠️ 侦察限制
+
+目标 IP `198.18.15.169` 属于 **RFC2544 保留段**（基准测试地址），HTTP 
+请求可通过浏览器代理访问，但 TCP 
+端口扫描和深度目录爆破因网络不可达而受限。如需完整结果，建议在可直连目标的网络
+环境（VPN/内网）中重新执行。
+
+### 📄 报告文件
+
+```
+C:\Users\23725\.argus\output\reports\report_demo.testfire.net_20260508_181642.m
+d
+```
+
+项目状态已保存为 
+`testfire-recon`，后续可随时加载继续侦察。需要我做进一步的漏洞探测（SQL 
+注入/XSS/CORS）吗？
+

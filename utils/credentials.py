@@ -58,8 +58,13 @@ def _load(path: Path | None = None) -> dict[str, dict[str, str]]:
     out: dict[str, dict[str, str]] = {}
     if real_path.exists():
         try:
-            with open(real_path, "rb") as f:
-                data: dict[str, Any] = tomllib.load(f)
+            # 防御 UTF-8 BOM：PowerShell `Out-File -Encoding utf8` 等工具默认会
+            # 写入 EF BB BF 头，但 CPython 3.11 tomllib 不剥 BOM 直接报 Invalid
+            # statement。先读字节再剥 BOM 喂 tomllib.loads。
+            raw = real_path.read_bytes()
+            if raw.startswith(b"\xef\xbb\xbf"):
+                raw = raw[3:]
+            data: dict[str, Any] = tomllib.loads(raw.decode("utf-8"))
             targets = data.get("targets", {})
             if isinstance(targets, dict):
                 for host, cred in targets.items():

@@ -1,0 +1,21 @@
+=== D1 DVWA login + sqli ===
+target: http://127.0.0.1:8080
+model: xiaomi_mimo/mimo-v2.5-pro
+status: ok
+elapsed_s: 147.8
+turns: 21
+tool_calls (23): credentials_lookup / credentials_lookup / credentials_lookup / credentials_lookup / credentials_lookup / auth_login / browser_get_text / browser_click / browser_navigate / auth_login / browser_navigate / browser_get_text / vuln_sqli_timing / read_file / save_file / vuln_sqli_timing / read_file / save_file / vuln_sqli_timing / http_request / http_request / http_request / generate_report
+auth_login_called: True
+auth_login_success: True
+vuln_called: True
+vuln_vulnerable: False
+vuln_summary: 
+
+--- final_text ---
+---
+
+## ✅ 任务完成
+
+**一句话总结**：对本机 DVWA 靶场（127.0.0.1:8080）的授权漏洞验证已完成，**SQL 注入漏洞被成功检测到**——通过 Boolean-based 注入（`' OR '1'='1`）提取到全部 5 个用户记录，通过 UNION SELECT 注入（`database(),user()`）获取到数据库名 `dvwa` 和数据库用户 `app@localhost`，漏洞严重程度为高危。
+
+> 📄 完整报告已保存至：`~/.argus/output/reports/report_127.0.0.1_8080_20260508_181924.md`
