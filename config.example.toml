@@ -1,5 +1,10 @@
 [general]
-# 默认模型，支持 litellm 格式：deepseek/deepseek-v4-pro, deepseek/deepseek-v4-flash, gpt-4o, claude-sonnet-4-20250514, ollama/qwen2.5
+# 默认模型，支持 litellm 格式：
+#   deepseek/deepseek-v4-pro, deepseek/deepseek-v4-flash
+#   xiaomi_mimo/mimo-v2.5-pro, xiaomi_mimo/mimo-v2.5, xiaomi_mimo/mimo-v2.5-flash  (1M ctx, MIT 开源)
+#   gpt-5.5, gpt-5.4-mini
+#   claude-sonnet-4-6, claude-opus-4-7
+#   ollama/qwen3:32b 等本地模型
 # 注意: deepseek-chat 将于 2026-07-24 退役，建议使用 v4 系列
 default_model = "deepseek/deepseek-v4-flash"
 # 危险操作需要用户确认（safe 级工具始终自动执行）
@@ -14,17 +19,20 @@ max_retries = 2
 log_to_file = true
 # 上下文窗口大小 (tokens)，超过此值的 80% 将触发压缩
 # 不要超过所选模型的实际上下文限制：
-#   deepseek-v4-flash: 128K  →  context_max_tokens = 128000
-#   deepseek-v4-pro:   128K  →  context_max_tokens = 128000
-#   gpt-5.4-mini:      400K  →  context_max_tokens = 400000
-#   claude-sonnet-4-6: 200K  →  context_max_tokens = 200000
+#   deepseek-v4-flash: 128K   →  context_max_tokens = 128000
+#   deepseek-v4-pro:   128K   →  context_max_tokens = 128000
+#   mimo-v2.5*:        1M     →  context_max_tokens = 1048576
+#   gpt-5.4-mini:      400K   →  context_max_tokens = 400000
+#   claude-sonnet-4-6: 200K   →  context_max_tokens = 200000
 context_max_tokens = 128000
 
 [api_keys]
-# 至少填一个。支持 DeepSeek / OpenAI / Anthropic。
+# 至少填一个。支持 DeepSeek / OpenAI / Anthropic / Xiaomi MiMo。
 deepseek = ""
 openai = ""
 anthropic = ""
+# 小米 MiMo（platform.xiaomimimo.com，参与 100T 创造者激励计划可领免费 Token Plan）
+xiaomi_mimo = ""
 
 [browser]
 # headed = true 会弹出浏览器窗口（调试用）。

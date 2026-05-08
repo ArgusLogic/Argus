@@ -3,7 +3,7 @@
 [![CI](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml/badge.svg)](https://github.com/ArgusLogic/Argus/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Tests](https://img.shields.io/badge/tests-537%20passing-green.svg)](#测试)
+[![Tests](https://img.shields.io/badge/tests-541%20passing-green.svg)](#测试)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > 基于 LLM 的 CLI 自主侦察 Agent。一句自然语言任务，**44 个内置工具**全程自动调度——浏览器自动化、DevTools 抓包、JS 端点挖掘、SSE 流式捕获、子域名/目录枚举、端口扫描、请求重放，最终产出结构化 Markdown 报告。
@@ -22,7 +22,7 @@
 - **统一 Config 单例** — 所有模块通过 `utils.config` 读 `~/.argus/config.toml`，进程级缓存
 - **per-target 限流** — 子域枚举/目录爆破多代理叠加时不击穿 WAF
 - **Rust 加速骨架** — `argus_native` crate via PyO3，Python fallback 透明
-- **完整工程化** — ruff/mypy/pytest 全绿，**537 测试**，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
+- **完整工程化** — ruff/mypy/pytest 全绿，**541 测试**，GitHub Actions CI（Linux + Windows × Python 3.11/3.12）
 
 ## 快速开始
 
@@ -69,6 +69,9 @@ pip install target/wheels/*.whl
 |---|---|---|---|
 | **DeepSeek** | `deepseek/deepseek-v4-flash` | 128K | 性价比首选 ¥1/2 per Mtok |
 | | `deepseek/deepseek-v4-pro` | 128K | 更强推理，2.5 折时段 ¥3/6 |
+| **Xiaomi MiMo** | `xiaomi_mimo/mimo-v2.5-pro` | **1M** | 旗舰 Coding/Agent，MIT 开源；100T 激励计划期间可免费领 Token Plan |
+| | `xiaomi_mimo/mimo-v2.5` | **1M** | 多模态（文本+图像） |
+| | `xiaomi_mimo/mimo-v2.5-flash` | **1M** | 推理快、价格低 |
 | **OpenAI** | `gpt-5.5` | 400K | 最新旗舰 |
 | | `gpt-5.4-mini` | 400K | 高性价比 |
 | **Anthropic** | `claude-sonnet-4-6` | 200K | 编码 / Agent 任务首选 |
@@ -326,7 +329,7 @@ Argus/
 ├── argus_native/                 # Rust crate（可选）
 │   ├── Cargo.toml
 │   └── src/{lib,sanitizer,memory}.rs
-├── tests/                        # 537 测试
+├── tests/                        # 541 测试
 └── .github/workflows/ci.yml      # lint + mypy + pytest matrix + Rust build
 ```
 
@@ -335,7 +338,7 @@ Argus/
 ### 测试
 
 ```bash
-make test                                 # 全部 537 测试
+make test                                 # 全部 541 测试
 pytest tests/test_browser_extras.py -v    # 单文件
 pytest --cov --cov-report=term            # 覆盖率
 ```

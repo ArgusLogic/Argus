@@ -43,6 +43,8 @@ class LLMClient:
             "deepseek": "DEEPSEEK_API_KEY",
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
+            # Xiaomi MiMo（litellm 原生 provider 前缀 xiaomi_mimo/）
+            "xiaomi_mimo": "XIAOMI_MIMO_API_KEY",
         }
         for provider, env_var in mapping.items():
             key = keys.get(provider, "")

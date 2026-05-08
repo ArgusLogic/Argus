@@ -124,6 +124,10 @@ _AVAILABLE_MODELS = [
     ("deepseek/deepseek-v4-flash", "V4 Flash · ¥1/2 per Mtok"),
     ("deepseek/deepseek-v4-pro", "V4 Pro · ¥3/6 per Mtok (2.5折)"),
     ("deepseek/deepseek-chat", "旧版 Chat（将于 2026/07 弃用）"),
+    # 小米 MiMo V2.5 系列（platform.xiaomimimo.com，开源、1M 上下文）
+    ("xiaomi_mimo/mimo-v2.5-pro", "MiMo V2.5 Pro · 旗舰推理 / Coding / Agent · 1M ctx"),
+    ("xiaomi_mimo/mimo-v2.5", "MiMo V2.5 · 多模态（文本+图像）· 1M ctx"),
+    ("xiaomi_mimo/mimo-v2.5-flash", "MiMo V2.5 Flash · 推理快 / 价格低 · 1M ctx"),
 ]
 
 _EFFORT_LEVELS = ["off", "high", "max"]
