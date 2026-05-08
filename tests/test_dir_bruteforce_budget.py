@@ -133,11 +133,66 @@ async def test_dir_bruteforce_wall_budget_stops_remaining() -> None:
     with (
         patch.object(recon, "DIRECTORIES", wordlist),
         patch.object(recon.httpx, "AsyncClient", _mk_fake_client_factory(transport)),
-        patch.object(recon, "_DIR_WALL_BUDGET_S", 0.15),
+        patch.object(recon, "_resolve_dir_budget", lambda: 0.15),
     ):
         out = await recon.dir_bruteforce("https://example.com", concurrency="1")
 
     assert "墙钟预算" in out or "提前收尾" in out
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Day 5 issue 1 修复回归：_resolve_dir_budget 自适应 tool_timeout
+# ──────────────────────────────────────────────────────────────────────────
+
+
+class TestResolveDirBudget:
+    """budget 必须 ≤ tool_timeout - safety_margin，且 ≥ floor，且 ≤ 上限常量。"""
+
+    def test_budget_respects_tool_timeout(self, tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]
+        """tool_timeout=20 → budget=15（被 timeout - 5 压低，未顶到 30）。"""
+        from tools import recon
+
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("[general]\ntool_timeout = 20\n", encoding="utf-8")
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
+        from utils import config as cfg_mod
+
+        cfg_mod.reload()
+        assert recon._resolve_dir_budget() == pytest.approx(15.0)
+
+    def test_budget_capped_by_default(self, tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]
+        """tool_timeout=120 → budget=30（上限常量起作用，不会到 115）。"""
+        from tools import recon
+
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("[general]\ntool_timeout = 120\n", encoding="utf-8")
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
+        from utils import config as cfg_mod
+
+        cfg_mod.reload()
+        assert recon._resolve_dir_budget() == pytest.approx(30.0)
+
+    def test_budget_min_floor(self, tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:  # type: ignore[no-untyped-def]
+        """tool_timeout=3 → budget=5（floor 兜底，不会负数或 0）。"""
+        from tools import recon
+
+        cfg = tmp_path / "config.toml"
+        cfg.write_text("[general]\ntool_timeout = 3\n", encoding="utf-8")
+        monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
+        from utils import config as cfg_mod
+
+        cfg_mod.reload()
+        assert recon._resolve_dir_budget() == pytest.approx(5.0)
+
+    def test_budget_fallback_on_config_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """get_section 抛异常 → 退回常量 30。"""
+        from tools import recon
+
+        def _boom(_name: str) -> dict:
+            raise RuntimeError("simulated config corruption")
+
+        monkeypatch.setattr("utils.config.get_section", _boom)
+        assert recon._resolve_dir_budget() == pytest.approx(recon._DIR_WALL_BUDGET_S)
 
 
 def test_dir_bruteforce_constants_sane() -> None:
