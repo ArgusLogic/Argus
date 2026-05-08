@@ -11,8 +11,11 @@
 
 import asyncio
 import contextlib
+import functools
 import os
 import time
+from collections.abc import Awaitable, Callable
+from typing import TypeVar
 
 from playwright.async_api import (
     Browser,
@@ -28,6 +31,65 @@ from utils.logger import log_warning
 from utils.sanitizer import sanitize_url, truncate
 
 DEFAULT_TIMEOUT_MS = 30000
+
+# issue #2：长任务中 Playwright 偶发 broken-pipe / target-closed 异常。
+# 命中以下子串时认为浏览器/page 已断，重置状态后重试一次。
+_BROKEN_PIPE_PATTERNS: tuple[str, ...] = (
+    "TargetClosedError",
+    "Browser closed",
+    "Connection closed",
+    "Target page, context or browser has been closed",
+    "Target closed",
+    "Page crashed",
+    "EPIPE",
+    "Broken pipe",
+)
+
+
+def _is_broken_pipe(exc: BaseException) -> bool:
+    msg = f"{type(exc).__name__}: {exc}"
+    return any(pat in msg for pat in _BROKEN_PIPE_PATTERNS)
+
+
+_T = TypeVar("_T")
+
+
+def _result_indicates_broken_pipe(result: object) -> bool:
+    """browser_* 工具大多 try/except 后把异常转成失败字符串，需要从字符串里识别。"""
+    if not isinstance(result, str):
+        return False
+    return any(pat in result for pat in _BROKEN_PIPE_PATTERNS)
+
+
+def _retry_on_broken_pipe(
+    fn: Callable[..., Awaitable[_T]],
+) -> Callable[..., Awaitable[_T]]:
+    """装饰器：高频 browser_* 工具命中 broken-pipe 时重建浏览器并重试一次。
+
+    检测两种情况：
+      1) 直接抛出（异常消息含 broken-pipe 模式）
+      2) 工具内部 try/except 已吞异常，返回的失败字符串里含 broken-pipe 模式
+    """
+
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):  # type: ignore[no-untyped-def]
+        try:
+            result = await fn(*args, **kwargs)
+        except Exception as e:
+            if not _is_broken_pipe(e):
+                raise
+            log_warning(f"{fn.__name__} 抛 broken-pipe，重建浏览器后重试一次: {e}")
+            with contextlib.suppress(Exception):
+                await _pool.close()
+            return await fn(*args, **kwargs)
+        if _result_indicates_broken_pipe(result):
+            log_warning(f"{fn.__name__} 返回 broken-pipe 失败串，重建浏览器后重试一次")
+            with contextlib.suppress(Exception):
+                await _pool.close()
+            return await fn(*args, **kwargs)
+        return result
+
+    return wrapper
 
 
 def _is_headed_from_config() -> bool:
@@ -226,6 +288,7 @@ async def get_browser_session(url: str | None = None) -> dict:
         "url": {"type": "string", "description": "要访问的目标 URL"},
     },
 )
+@_retry_on_broken_pipe
 async def browser_navigate(url: str) -> str:
     url = sanitize_url(url)
     page = await get_page()
@@ -250,6 +313,7 @@ async def browser_navigate(url: str) -> str:
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_get_html(selector: str = "") -> str:
     await get_page()
     ctx = _pool.get_active_context()
@@ -279,6 +343,7 @@ async def browser_get_html(selector: str = "") -> str:
         },
     },
 )
+@_retry_on_broken_pipe
 async def browser_get_text(selector: str = "") -> str:
     await get_page()
     ctx = _pool.get_active_context()
@@ -348,6 +413,7 @@ async def browser_console_exec(script: str) -> str:
         "selector": {"type": "string", "description": "要点击的元素的 CSS 选择器"},
     },
 )
+@_retry_on_broken_pipe
 async def browser_click(selector: str) -> str:
     page = await get_page()
     ctx = _pool.get_active_context() or page
@@ -370,6 +436,7 @@ async def browser_click(selector: str) -> str:
         "value": {"type": "string", "description": "要填入的文本"},
     },
 )
+@_retry_on_broken_pipe
 async def browser_fill(selector: str, value: str) -> str:
     await get_page()
     ctx = _pool.get_active_context()
