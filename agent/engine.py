@@ -67,16 +67,20 @@ TOOL_RISK_LEVELS: dict[str, str] = {
     "browser_download": "confirm",
     "http_request": "confirm",
     "crawl_site_map": "confirm",
+    # 系统信息（本机网络只读查询）
+    "net_info": "safe",
     # block — 高风险，必须确认 + 风险提示
     "subdomain_enum": "block",
     "dir_bruteforce": "block",
     "port_scan": "block",
+    "system_exec": "block",
 }
 
 BLOCK_RISK_HINTS: dict[str, str] = {
     "subdomain_enum": "将对目标域名发起大量 DNS 请求，可能触发安全警报",
     "dir_bruteforce": "将对目标发起大量 HTTP 请求进行路径枚举",
     "port_scan": "将对目标主机进行端口扫描（需本地安装 nmap）",
+    "system_exec": "将在本机执行 shell 命令；即便有白名单也请仔细核对参数",
 }
 
 

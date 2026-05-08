@@ -97,6 +97,18 @@ per_target_concurrency = 20
 subdomain_wordlist = ""
 directory_wordlist = ""
 
+# ── 系统命令工具（system_exec）─────────────────────────────────────────────
+# 默认 disabled。开启后 LLM 可在本机执行 shell 命令，但有三道安全门：
+#   1. enabled=true 是必须前提
+#   2. 命令必须在 allowed_commands 白名单内（仅校验主命令名）
+#   3. 内部用 shell=False，shell 元字符（&、|、;、$()、反引号）不会被解析
+# 此外强制审批 + 60s 超时 + 8KB 输出截断。
+# net_info（只读网络查询）不受此节影响，始终可用。
+[tools.system_exec]
+enabled = false
+# 可选：自定义白名单。留空 / 不设此项则用内置白名单（whoami/git/ps/ls 等只读类）
+# allowed_commands = ["whoami", "hostname", "git", "ps", "tasklist"]
+
 # ── 自演化 / Skills ────────────────────────────────────────────────────────
 [skills]
 # A1: 任务结束后扫描本轮工具调用，与已有技能 step 匹配（≥60% 重合）→ success_count+1
