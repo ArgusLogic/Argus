@@ -1,0 +1,57 @@
+[!] approval_mode=False enforced (--yolo CLI flag)
+
+ ▄▄███████████████▄▄                                                  
+▐██▀█▀█▀█▀█▀█▀█▀█▀██▌  Argus v0.1 · mimo-v2.5-pro                     
+▐██▄█▄█▄█▄█▄█▄█▄█▄██▌  52 tools loaded · /help · Esc to interrupt · py
+ ▀▀███████████████▀▀   D:\projects\agent                              
+
+[*] 一键侦察模式  target=http://demo.testfire.net
+[*] Turn 1 | Tokens: ~6616
+[!] 域名白名单拦截: dns_lookup
+[!] 域名白名单拦截: whois_lookup
+[!] 域名白名单拦截: header_analysis
+[!] 域名白名单拦截: subdomain_enum
+[*] Turn 2 | Tokens: ~6822
+[Tool] credentials_lookup → 找到 demo.testfire.net 凭据（明文已隔离，仅 
+placeholder 暴露给 LLM）。
+调用 auth_login 时按以下占位符传参（执行前自动展开为真值）：
+  username   = ${CRED_demo_testfire_net_USER}     # 真值: 'jsmith'
+  password   = ${CRED_demo_testfire_net_PASS
+[*] Turn 3 | Tokens: ~6973
+[Agent] 凭据已配置（`jsmith`），但授权门仍拦截了所有工具。这说明当前 
+`config.toml` 的 `.allowed_domains` 白名单未包含 `demo.testfire.net`。
+
+**需要你操作一步**：将 `demo.testfire.net` 添加到 Argus 配置白名单。
+
+编辑 `~/.argus/config.toml`，在 `` 段添加：
+
+```toml
+
+allowed_domains = ["demo.testfire.net"]
+```
+
+保存后我立即重新执行完整侦察流程。
+
+> **说明**：凭据已存在（满足"持有=已授权"条件），但当前版本授权检查优先走 
+`allowed_domains` 
+白名单。这是防误扫的安全设计——确保你明确确认该目标在授权测试范围内。`demo.testf
+ire.net` 是 IBM 官方维护的公开靶场，添加白名单无合规风险。
+凭据已配置（`jsmith`），但授权门仍拦截了所有工具。这说明当前 `config.toml` 的 
+`.allowed_domains` 白名单未包含 `demo.testfire.net`。
+
+**需要你操作一步**：将 `demo.testfire.net` 添加到 Argus 配置白名单。
+
+编辑 `~/.argus/config.toml`，在 `` 段添加：
+
+```toml
+
+allowed_domains = ["demo.testfire.net"]
+```
+
+保存后我立即重新执行完整侦察流程。
+
+> **说明**：凭据已存在（满足"持有=已授权"条件），但当前版本授权检查优先走 
+`allowed_domains` 
+白名单。这是防误扫的安全设计——确保你明确确认该目标在授权测试范围内。`demo.testf
+ire.net` 是 IBM 官方维护的公开靶场，添加白名单无合规风险。
+

@@ -1,0 +1,19 @@
+=== D1 DVWA login + sqli ===
+target: http://127.0.0.1:8080
+model: xiaomi_mimo/mimo-v2.5-pro
+status: ok
+elapsed_s: 60.3
+turns: 7
+tool_calls (6): credentials_lookup / auth_login / browser_navigate / browser_get_html / vuln_sqli_timing / generate_report
+auth_login_called: True
+auth_login_success: True
+vuln_called: True
+vuln_vulnerable: False
+vuln_summary: vuln_sqli_timing: vulnerable=False
+
+--- final_text ---
+---
+
+**一句话总结**：`vuln_sqli_timing` 对 DVWA Low 级别的 SQLi 参数 `id` 检测结果为 **未检测到漏洞**（`vulnerable=false`，0/4 payload 触发），原因是 DVWA 的 SQLi 是 **in-band**（UNION/Boolean 回显型），SLEEP payload 被直接查询吸收不产生延迟侧信道——需要用 `http_request` 手注 `' UNION SELECT 1,2,3-- -` 才能确认 in-band SQLi。
+
+> 报告已保存：`~/.argus/output/reports/report_127.0.0.1_8080_20260508_193643.md`

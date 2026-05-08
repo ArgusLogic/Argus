@@ -1,0 +1,641 @@
+{
+  "base_persona": {
+    "total_chars": 9857,
+    "total_tokens": 6204,
+    "sections": [
+      {
+        "title": "(开头)",
+        "chars": 79,
+        "tokens": 74,
+        "ratio_pct": 1.2
+      },
+      {
+        "title": "一、 核心心智模型",
+        "chars": 160,
+        "tokens": 163,
+        "ratio_pct": 2.6
+      },
+      {
+        "title": "二、 能力地图（按场景，不按工具名）",
+        "chars": 678,
+        "tokens": 334,
+        "ratio_pct": 5.4
+      },
+      {
+        "title": "三、 工具选择启发式（重点：你最常出错的地方）",
+        "chars": 1447,
+        "tokens": 767,
+        "ratio_pct": 12.4
+      },
+      {
+        "title": "四、 错误恢复决策树",
+        "chars": 923,
+        "tokens": 556,
+        "ratio_pct": 9.0
+      },
+      {
+        "title": "五、 何时停止 / 何时继续",
+        "chars": 530,
+        "tokens": 424,
+        "ratio_pct": 6.8
+      },
+      {
+        "title": "六、 授权与安全",
+        "chars": 684,
+        "tokens": 422,
+        "ratio_pct": 6.8
+      },
+      {
+        "title": "七、 长流程纪律",
+        "chars": 459,
+        "tokens": 299,
+        "ratio_pct": 4.8
+      },
+      {
+        "title": "八、 长期记忆",
+        "chars": 643,
+        "tokens": 483,
+        "ratio_pct": 7.8
+      },
+      {
+        "title": "九、 技能（程序性记忆）",
+        "chars": 222,
+        "tokens": 161,
+        "ratio_pct": 2.6
+      },
+      {
+        "title": "十、 输出风格",
+        "chars": 639,
+        "tokens": 490,
+        "ratio_pct": 7.9
+      },
+      {
+        "title": "十一、 已知坑（这些 Argus 之前犯过，不要再犯）",
+        "chars": 1299,
+        "tokens": 718,
+        "ratio_pct": 11.6
+      },
+      {
+        "title": "十二、 工作流剧本（高频场景的标准动作）",
+        "chars": 1592,
+        "tokens": 882,
+        "ratio_pct": 14.2
+      },
+      {
+        "title": "十三、 行为底线",
+        "chars": 239,
+        "tokens": 207,
+        "ratio_pct": 3.3
+      }
+    ]
+  },
+  "tool_descriptions": {
+    "tool_count": 52,
+    "desc_chars": {
+      "min": 7,
+      "p50": 54.0,
+      "p99": 349,
+      "max": 339,
+      "mean": 78.4
+    },
+    "desc_tokens_total": 2590,
+    "bottom_10": [
+      {
+        "name": "project_delete",
+        "desc_chars": 7,
+        "desc": "删除指定项目。"
+      },
+      {
+        "name": "browser_click",
+        "desc_chars": 10,
+        "desc": "点击页面上指定的元素"
+      },
+      {
+        "name": "browser_fill",
+        "desc_chars": 11,
+        "desc": "在输入框中填入文本内容"
+      },
+      {
+        "name": "browser_upload",
+        "desc_chars": 19,
+        "desc": "向页面的文件 input 上传本地文件"
+      },
+      {
+        "name": "devtools_cookies",
+        "desc_chars": 20,
+        "desc": "获取当前页面所在域名的所有 Cookie"
+      },
+      {
+        "name": "browser_screenshot",
+        "desc_chars": 24,
+        "desc": "截取当前页面的截图并保存到本地文件，返回文件路径"
+      },
+      {
+        "name": "devtools_sse_clear",
+        "desc_chars": 24,
+        "desc": "清空 SSE 消息 buffer（不影响监听）。"
+      },
+      {
+        "name": "devtools_headers",
+        "desc_chars": 28,
+        "desc": "获取当前页面加载时的 HTTP 响应头，可用于安全头分析"
+      },
+      {
+        "name": "project_list",
+        "desc_chars": 28,
+        "desc": "列出所有已保存的项目（按 updated_at 倒序）。"
+      },
+      {
+        "name": "whois_lookup",
+        "desc_chars": 28,
+        "desc": "查询目标域名的 WHOIS 注册信息（通过公共 API）"
+      }
+    ],
+    "top_10": [
+      {
+        "name": "browser_wait_for",
+        "desc_chars": 134
+      },
+      {
+        "name": "request_replay",
+        "desc_chars": 136
+      },
+      {
+        "name": "http_request",
+        "desc_chars": 143
+      },
+      {
+        "name": "delegate_subagents",
+        "desc_chars": 148
+      },
+      {
+        "name": "net_info",
+        "desc_chars": 157
+      },
+      {
+        "name": "system_exec",
+        "desc_chars": 165
+      },
+      {
+        "name": "credentials_lookup",
+        "desc_chars": 173
+      },
+      {
+        "name": "auth_login",
+        "desc_chars": 175
+      },
+      {
+        "name": "skill_manage",
+        "desc_chars": 316
+      },
+      {
+        "name": "memory_manage",
+        "desc_chars": 339
+      }
+    ],
+    "all": [
+      {
+        "name": "auth_login",
+        "desc_chars": 175,
+        "desc_tokens": 79,
+        "param_count": 7,
+        "param_doc_chars": 243
+      },
+      {
+        "name": "browser_click",
+        "desc_chars": 10,
+        "desc_tokens": 8,
+        "param_count": 1,
+        "param_doc_chars": 15
+      },
+      {
+        "name": "browser_console_exec",
+        "desc_chars": 42,
+        "desc_tokens": 19,
+        "param_count": 1,
+        "param_doc_chars": 18
+      },
+      {
+        "name": "browser_download",
+        "desc_chars": 60,
+        "desc_tokens": 50,
+        "param_count": 3,
+        "param_doc_chars": 62
+      },
+      {
+        "name": "browser_fill",
+        "desc_chars": 11,
+        "desc_tokens": 10,
+        "param_count": 2,
+        "param_doc_chars": 18
+      },
+      {
+        "name": "browser_frame",
+        "desc_chars": 128,
+        "desc_tokens": 76,
+        "param_count": 1,
+        "param_doc_chars": 51
+      },
+      {
+        "name": "browser_get_html",
+        "desc_chars": 56,
+        "desc_tokens": 35,
+        "param_count": 1,
+        "param_doc_chars": 22
+      },
+      {
+        "name": "browser_get_text",
+        "desc_chars": 33,
+        "desc_tokens": 27,
+        "param_count": 1,
+        "param_doc_chars": 19
+      },
+      {
+        "name": "browser_keyboard",
+        "desc_chars": 97,
+        "desc_tokens": 54,
+        "param_count": 3,
+        "param_doc_chars": 100
+      },
+      {
+        "name": "browser_navigate",
+        "desc_chars": 38,
+        "desc_tokens": 27,
+        "param_count": 1,
+        "param_doc_chars": 10
+      },
+      {
+        "name": "browser_screenshot",
+        "desc_chars": 24,
+        "desc_tokens": 19,
+        "param_count": 1,
+        "param_doc_chars": 28
+      },
+      {
+        "name": "browser_tabs",
+        "desc_chars": 69,
+        "desc_tokens": 55,
+        "param_count": 2,
+        "param_doc_chars": 83
+      },
+      {
+        "name": "browser_upload",
+        "desc_chars": 19,
+        "desc_tokens": 10,
+        "param_count": 2,
+        "param_doc_chars": 29
+      },
+      {
+        "name": "browser_wait_for",
+        "desc_chars": 134,
+        "desc_tokens": 73,
+        "param_count": 3,
+        "param_doc_chars": 63
+      },
+      {
+        "name": "crawl_forms",
+        "desc_chars": 36,
+        "desc_tokens": 29,
+        "param_count": 0,
+        "param_doc_chars": 0
+      },
+      {
+        "name": "crawl_js_endpoints",
+        "desc_chars": 52,
+        "desc_tokens": 33,
+        "param_count": 1,
+        "param_doc_chars": 36
+      },
+      {
+        "name": "crawl_js_sources",
+        "desc_chars": 29,
+        "desc_tokens": 10,
+        "param_count": 0,
+        "param_doc_chars": 0
+      },
+      {
+        "name": "crawl_links",
+        "desc_chars": 33,
+        "desc_tokens": 25,
+        "param_count": 1,
+        "param_doc_chars": 37
+      },
+      {
+        "name": "crawl_site_map",
+        "desc_chars": 47,
+        "desc_tokens": 44,
+        "param_count": 3,
+        "param_doc_chars": 32
+      },
+      {
+        "name": "credentials_lookup",
+        "desc_chars": 173,
+        "desc_tokens": 97,
+        "param_count": 1,
+        "param_doc_chars": 57
+      },
+      {
+        "name": "delegate_subagents",
+        "desc_chars": 148,
+        "desc_tokens": 127,
+        "param_count": 1,
+        "param_doc_chars": 190
+      },
+      {
+        "name": "devtools_cookies",
+        "desc_chars": 20,
+        "desc_tokens": 11,
+        "param_count": 0,
+        "param_doc_chars": 0
+      },
+      {
+        "name": "devtools_headers",
+        "desc_chars": 28,
+        "desc_tokens": 20,
+        "param_count": 0,
+        "param_doc_chars": 0
+      },
+      {
+        "name": "devtools_network_log",
+        "desc_chars": 33,
+        "desc_tokens": 26,
+        "param_count": 2,
+        "param_doc_chars": 50
+      },
+      {
+        "name": "devtools_sse_clear",
+        "desc_chars": 24,
+        "desc_tokens": 14,
+        "param_count": 0,
+        "param_doc_chars": 0
+      },
+      {
+        "name": "devtools_sse_log",
+        "desc_chars": 105,
+        "desc_tokens": 73,
+        "param_count": 3,
+        "param_doc_chars": 84
+      },
+      {
+        "name": "devtools_start_capture",
+        "desc_chars": 70,
+        "desc_tokens": 59,
+        "param_count": 0,
+        "param_doc_chars": 0
+      },
+      {
+        "name": "dir_bruteforce",
+        "desc_chars": 29,
+        "desc_tokens": 25,
+        "param_count": 2,
+        "param_doc_chars": 39
+      },
+      {
+        "name": "dns_lookup",
+        "desc_chars": 45,
+        "desc_tokens": 27,
+        "param_count": 2,
+        "param_doc_chars": 57
+      },
+      {
+        "name": "generate_report",
+        "desc_chars": 47,
+        "desc_tokens": 38,
+        "param_count": 13,
+        "param_doc_chars": 120
+      },
+      {
+        "name": "header_analysis",
+        "desc_chars": 56,
+        "desc_tokens": 32,
+        "param_count": 1,
+        "param_doc_chars": 6
+      },
+      {
+        "name": "http_request",
+        "desc_chars": 143,
+        "desc_tokens": 79,
+        "param_count": 6,
+        "param_doc_chars": 272
+      },
+      {
+        "name": "memory_manage",
+        "desc_chars": 339,
+        "desc_tokens": 233,
+        "param_count": 4,
+        "param_doc_chars": 102
+      },
+      {
+        "name": "net_info",
+        "desc_chars": 157,
+        "desc_tokens": 96,
+        "param_count": 1,
+        "param_doc_chars": 45
+      },
+      {
+        "name": "port_scan",
+        "desc_chars": 39,
+        "desc_tokens": 39,
+        "param_count": 2,
+        "param_doc_chars": 50
+      },
+      {
+        "name": "project_delete",
+        "desc_chars": 7,
+        "desc_tokens": 5,
+        "param_count": 1,
+        "param_doc_chars": 3
+      },
+      {
+        "name": "project_list",
+        "desc_chars": 28,
+        "desc_tokens": 16,
+        "param_count": 0,
+        "param_doc_chars": 0
+      },
+      {
+        "name": "project_load",
+        "desc_chars": 52,
+        "desc_tokens": 24,
+        "param_count": 1,
+        "param_doc_chars": 3
+      },
+      {
+        "name": "project_save",
+        "desc_chars": 120,
+        "desc_tokens": 65,
+        "param_count": 2,
+        "param_doc_chars": 49
+      },
+      {
+        "name": "read_file",
+        "desc_chars": 34,
+        "desc_tokens": 25,
+        "param_count": 1,
+        "param_doc_chars": 14
+      },
+      {
+        "name": "request_replay",
+        "desc_chars": 136,
+        "desc_tokens": 58,
+        "param_count": 4,
+        "param_doc_chars": 152
+      },
+      {
+        "name": "request_replay_list",
+        "desc_chars": 95,
+        "desc_tokens": 52,
+        "param_count": 2,
+        "param_doc_chars": 25
+      },
+      {
+        "name": "save_file",
+        "desc_chars": 113,
+        "desc_tokens": 56,
+        "param_count": 2,
+        "param_doc_chars": 133
+      },
+      {
+        "name": "session_search",
+        "desc_chars": 75,
+        "desc_tokens": 68,
+        "param_count": 2,
+        "param_doc_chars": 24
+      },
+      {
+        "name": "skill_manage",
+        "desc_chars": 316,
+        "desc_tokens": 163,
+        "param_count": 6,
+        "param_doc_chars": 154
+      },
+      {
+        "name": "subdomain_enum",
+        "desc_chars": 33,
+        "desc_tokens": 33,
+        "param_count": 2,
+        "param_doc_chars": 29
+      },
+      {
+        "name": "system_exec",
+        "desc_chars": 165,
+        "desc_tokens": 96,
+        "param_count": 2,
+        "param_doc_chars": 80
+      },
+      {
+        "name": "vuln_cors_misconfig",
+        "desc_chars": 123,
+        "desc_tokens": 61,
+        "param_count": 1,
+        "param_doc_chars": 18
+      },
+      {
+        "name": "vuln_open_redirect",
+        "desc_chars": 61,
+        "desc_tokens": 51,
+        "param_count": 2,
+        "param_doc_chars": 56
+      },
+      {
+        "name": "vuln_sqli_timing",
+        "desc_chars": 83,
+        "desc_tokens": 63,
+        "param_count": 4,
+        "param_doc_chars": 61
+      },
+      {
+        "name": "vuln_xss_reflection",
+        "desc_chars": 59,
+        "desc_tokens": 57,
+        "param_count": 3,
+        "param_doc_chars": 37
+      },
+      {
+        "name": "whois_lookup",
+        "desc_chars": 28,
+        "desc_tokens": 18,
+        "param_count": 1,
+        "param_doc_chars": 18
+      }
+    ]
+  },
+  "run_logs": {
+    "log_count": 12,
+    "scanned": 12,
+    "failure_modes": {
+      "timeout": 1,
+      "tool_not_registered": 0,
+      "param_error": 0,
+      "json_parse": 0,
+      "auth_fail": 0,
+      "early_stop_waf": 2,
+      "early_stop_wildcard": 0,
+      "browser_closed": 0,
+      "404_path": 0,
+      "json_invalid_tool_call": 0
+    },
+    "tool_frequency_top15": [
+      [
+        "dns_lookup",
+        15
+      ],
+      [
+        "whois_lookup",
+        10
+      ],
+      [
+        "subdomain_enum",
+        10
+      ],
+      [
+        "header_analysis",
+        10
+      ],
+      [
+        "http_request",
+        10
+      ],
+      [
+        "generate_report",
+        9
+      ],
+      [
+        "browser_navigate",
+        6
+      ],
+      [
+        "dir_bruteforce",
+        5
+      ],
+      [
+        "port_scan",
+        5
+      ],
+      [
+        "browser_screenshot",
+        4
+      ],
+      [
+        "browser_get_text",
+        3
+      ],
+      [
+        "crawl_forms",
+        2
+      ],
+      [
+        "crawl_links",
+        2
+      ],
+      [
+        "devtools_headers",
+        2
+      ],
+      [
+        "devtools_cookies",
+        1
+      ]
+    ]
+  }
+}
