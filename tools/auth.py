@@ -60,10 +60,14 @@ _SUBMIT_CANDIDATES: tuple[str, ...] = (
 @registry.tool(
     name="credentials_lookup",
     description=(
-        "查询本机 ~/.argus/credentials.toml 中目标 host 的凭据。"
-        "返回的字符串里密码用 placeholder（${CRED_*_PASS}）而非明文 — "
-        "后续调 auth_login 时按 placeholder 传参，AgentEngine 在执行前会自动"
-        "展开真值。LLM 永远不直接看到密码明文，日志/报告也不会泄漏。"
+        "【作用】查 ~/.argus/credentials.toml 拿目标的用户名 + 密码占位符（永远不返回明文）。"
+        "【关键参数】host：不带 scheme，含端口，如 '127.0.0.1:8080' / 'demo.testfire.net'。"
+        "【何时用】登录前第一步——确认是否已配凭据。返回里密码字段是 ${CRED_<host>_PASS} 占位符，"
+        "直接当 password 参数传给 auth_login，AgentEngine 执行前自动展开真值，LLM 上下文永远见不到明文。"
+        "【避坑】(1) 未配返回 '未找到' → 提醒用户存到 credentials.toml，不要让用户在 chat 贴明文；"
+        "(2) 返回里 ${CRED_*_PASS} 是设计中的占位符，不是 bug；"
+        "(3) host 大小写敏感且含端口，写 '127.0.0.1' 而非 'http://127.0.0.1:8080/'；"
+        "(4) 凭据 BOM 解析问题已防御，但用户改文件时仍要用 utf8NoBOM。"
     ),
     params={
         "host": {
@@ -79,9 +83,17 @@ async def credentials_lookup(host: str) -> str:
 @registry.tool(
     name="auth_login",
     description=(
-        "用 BrowserPool 自动登录目标。登录成功后 cookies 留在浏览器 context，"
-        "后续 browser_* 与 http_request(use_browser_session='true') 自动继承登录态。"
-        "username / password 可传明文，也可传 ${CRED_<host>_USER/PASS} 占位符（推荐）。"
+        "【作用】用浏览器自动填表 + 提交完成登录；成功后 cookie 留在浏览器 context，后续 browser_* / "
+        "http_request(use_browser_session='true') 自动继承登录态。"
+        "【关键参数】login_url（登录页完整 URL）；username / password（推荐用 ${CRED_*_USER/PASS} 占位符，"
+        "AgentEngine 自动展开）；user_field / pass_field / submit_selector 默认 'auto' 自动探测，标准表单一般无需手填；"
+        "success_indicator='auto' 启发式判 URL 不再含 'login'，特殊站点可传具体子串。"
+        "【何时用】(1) DVWA / AltoroJ / JuiceShop 等靶场登录；(2) 凭据流标准入口——先 credentials_lookup 拿占位符，"
+        "再 auth_login。任何依赖 session 的 vuln_* / crawl_* / 受保护 http_request 都要先这一步成功。"
+        "【避坑】(1) 非标登录（验证码/多步/SSO）会失败，回退到 browser_fill+browser_click 手糊；"
+        "(2) success_indicator='auto' 对 login.php?error=... 这种 URL 仍含 'login' 的站点判错误，要传具体 URL/text；"
+        "(3) 同一参数失败 ≥2 次必须换思路（换选择器 / 换提交方式），不要重试死循环；"
+        "(4) 不要直接传 password 明文，明文虽然会被 scrub 但白白占用 LLM 上下文。"
     ),
     params={
         "login_url": {

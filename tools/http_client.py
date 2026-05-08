@@ -14,9 +14,18 @@ from utils.sanitizer import sanitize_filename, sanitize_url, truncate
 @registry.tool(
     name="http_request",
     description=(
-        "发送自定义 HTTP 请求（GET/POST/PUT/DELETE 等），返回状态码、响应头和响应体。"
-        "若设 use_browser_session='true'，会复用当前浏览器的 Cookie/User-Agent/Referer，"
-        "解决登录后 API 调用被 302 到登录页的问题。"
+        "【作用】通用 HTTP 客户端——发任意方法的请求，返回 status / headers / body（或保存到文件）。Argus 第二高频工具，仅次于浏览器。"
+        "【关键参数】url；method（默认 GET）；headers（JSON 字符串自定义请求头）；body（POST/PUT 的请求体）；"
+        "use_browser_session='true'（注入登录后 cookie/UA/Referer，登录态调 API 必备）；"
+        "save_to（大响应保存到 ~/.argus/output/downloads/<save_to>，避免 4000 字截断，返回路径而非内容）。"
+        "【何时用】(1) 抓单个 URL 拿 JSON / HTML（轻量，比 browser 快）；(2) 登录后 API 探测 → use_browser_session='true'；"
+        "(3) 下大 JS / sourcemap → save_to='app.js'；(4) 漏洞手注（in-band SQLi / SSRF / IDOR）；"
+        "(5) 探测 robots.txt / sitemap.xml / .well-known / .git/HEAD。"
+        "【避坑】(1) 抓需 JS 渲染的页面会拿到 SPA 骨架，要换 browser_navigate；"
+        "(2) use_browser_session='true' 但浏览器没启动时只警告不失败，记得先 browser_navigate；"
+        "(3) headers 必须是合法 JSON 字符串（用双引号），单引号会失败；"
+        "(4) 默认 follow_redirects=True，要观察 3xx Location 头需用专门的重定向工具；"
+        "(5) save_to 文件名经 sanitize，不要带路径分隔符。"
     ),
     params={
         "url": {"type": "string", "description": "请求 URL"},

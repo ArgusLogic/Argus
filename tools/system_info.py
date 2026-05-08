@@ -70,10 +70,13 @@ _NET_INFO_VALID_ACTIONS: Final[tuple[str, ...]] = (
 @registry.tool(
     name="net_info",
     description=(
-        "查询本机网络信息（只读、跨平台、零风险）。LLM 只能传 action 枚举，"
-        "不接受任意 shell 命令。可选 action："
-        "interfaces（网卡 IP/MAC/网关）/ routes（路由表）/ "
-        "connections（TCP/UDP 连接）/ arp（ARP 缓存）/ dns（本机 DNS 服务器）。"
+        "【作用】查 Argus **本机** 网络配置，跨平台只读零风险。**不联网、不接触目标**。"
+        "【关键参数】action 枚举（interfaces / routes / connections / arp / dns），不接受任意 shell 字符串。"
+        "【何时用】(1) 用户问 '我本机 IP 是多少'；(2) 怀疑代理 / VPN 干扰 → 看 routes 和 dns；"
+        "(3) 检查到目标连接是否建立 → connections；(4) 端口扫描前确认本机网卡可达。"
+        "【避坑】(1) **不要用它查目标**——查目标用 dns_lookup / port_scan；"
+        "(2) Linux / Mac / Windows 命令底层不同，但 action 抽象统一，跨平台都能调；"
+        "(3) connections 输出可能很长（数百行），自动 truncate 到 8000 字符。"
     ),
     params={
         "action": {
@@ -168,10 +171,17 @@ def _load_system_exec_config() -> tuple[bool, frozenset[str]]:
 @registry.tool(
     name="system_exec",
     description=(
-        "在本机执行受限的 shell 命令（默认 disabled，需在 config.toml "
-        "[tools.system_exec] enabled=true 开启）。命令必须在白名单内，"
-        "shell 元字符（&、|、;、$()、反引号）不会被解析（shell=False）。"
-        "用于：查 git 状态、看进程列表、读本地文件等系统级查询。"
+        "【作用】在 Argus **本机** 跑受限 shell 命令，subprocess 直接 exec 不经 shell（杜绝管道 / 重定向 / 反引号注入）。"
+        "默认 disabled，要在 config.toml [tools.system_exec] enabled=true 才能用。"
+        "【关键参数】command（命令名，不含参数；只取首个 token，防 LLM 把整条语句塞进来绕过白名单）；"
+        "args（参数列表，每项一个字符串，如 ['status','--short']）。"
+        "【何时用】(1) 查本地 git 状态 / log；(2) 看进程列表 / 磁盘占用；(3) 读本地文件 head / cat；"
+        "(4) 用户要 Argus 帮看本机环境。**不要拿来代替 dns_lookup / http_request 等专业工具**。"
+        "【避坑】(1) 默认白名单 ~40 个只读命令（whoami / git / ps / cat…），白名单外直接拒绝，不可绕过；"
+        "(2) shell 元字符（&、|、;、$()、反引号）不会被解析，想 pipe 要用 args 传给具体命令的 -c；"
+        "(3) 60s 超时；输出 truncate 到 8000；"
+        "(4) FileNotFoundError 说明 PATH 里没该命令，不是 bug；"
+        "(5) 不能查目标——目标用 dns_lookup / http_request / port_scan。"
     ),
     params={
         "command": {

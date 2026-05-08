@@ -13,11 +13,18 @@ from agent.tool_registry import registry
 @registry.tool(
     name="delegate_subagents",
     description=(
-        "并行启动多个子代理（subagent）完成独立子任务。"
-        "适用场景：需要对多个目标做相同/相似侦察（如 3 个域名分别做信息收集）、"
-        "或一次任务可拆分为多个互不依赖的子目标。"
-        "限制：子代理不能再调用 delegate_subagents（防递归）；MEMORY 是只读的。"
-        "返回：所有子任务的结论汇总文本。"
+        "【作用】并行启动 ≤8 个子代理（subagent），每个独立跑自己的 goal，主代理拿到汇总文本继续。"
+        "比 for 循环串行省 N 倍墙钟时间，且不占主代理上下文（每个子 agent 有自己的窗口）。"
+        "【关键参数】tasks——子任务列表，每项 {goal, allowed_tools?, max_subturns?, timeout_seconds?}，或简化为 goal 字符串列表。"
+        "allowed_tools 可限制子代理可用工具（推荐传以收敛行为）；max_subturns 默认 20；timeout_seconds 默认 600。"
+        "【何时用】(1) 多目标同类侦察（'对 a.com / b.com / c.com 都做信息收集'）；"
+        "(2) 同目标多个独立维度（DNS + 端口 + WHOIS 互不依赖）；(3) 探索性发散（多个子方向各跑）。"
+        "【避坑】(1) 任务有顺序依赖（A 结果决定 B 输入）→ 不要 delegate，主代理串行；"
+        "(2) 单一聚焦目标 → 直接做，delegate 反而增 overhead；"
+        "(3) 子代理不能再 delegate（防递归爆炸）；"
+        "(4) MEMORY 对子代理只读——它们不能写入持久记忆；"
+        "(5) 一次最多 8 个，更多要分批；"
+        "(6) 复杂任务建议把 max_subturns 调到 30+，默认 20 容易截断。"
     ),
     params={
         "tasks": {

@@ -480,9 +480,16 @@ _BUILTIN_WAITS = {"page_loaded", "network_idle", "ajax_complete", "sse_closed", 
 @registry.tool(
     name="browser_wait_for",
     description=(
-        "等待指定条件满足后返回，避免反复轮询。"
-        "条件支持: CSS 选择器（如 '#result'）/ JS 表达式（如 'app.loading === false'）/ "
-        "内置预设（'page_loaded' / 'network_idle' / 'sse_closed'）。"
+        "【作用】阻塞等到页面达成某个条件再返回，取代 'sleep + 反复检查 DOM' 的笨办法，省 70% 工具往返。"
+        "【关键参数】condition（CSS 选择器 / JS 表达式 / 预设名）；timeout（毫秒，默认 30000）；"
+        "poll_interval（JS 表达式轮询间隔，默认 500ms）。内置预设: page_loaded / load / domcontentloaded / network_idle / ajax_complete / sse_closed。"
+        "【何时用】(1) 等表单 disabled 解开 → '#submit-btn:not([disabled])'；(2) 等 SPA 路由变化 → "
+        "'location.hash === \"#/done\"'；(3) 等 AJAX 后渲染 → 'ajax_complete' 预设；(4) 等 SSE 流结束 → "
+        "JS 查 EventSource.readyState；(5) 等页面加载完 → 'page_loaded' / 'network_idle' 预设。"
+        "【避坑】(1) JS 表达式会被自动包成 Boolean(...)，不要自己加 return；"
+        "(2) 含 === / && / => / () 等会被识为 JS，纯 CSS 选择器才走 wait_for_selector；"
+        "(3) timeout 太短直接失败，太长卡死整个 turn，常规页面 5000–10000ms 够了；"
+        "(4) sse_closed 预设是占位实现，建议传具体 JS 表达式。"
     ),
     params={
         "condition": {
@@ -573,8 +580,13 @@ async def browser_wait_for(condition: str, timeout: str = "30000", poll_interval
 @registry.tool(
     name="browser_tabs",
     description=(
-        "管理浏览器标签页：列出、切换、关闭。"
-        "解决 window.open 新窗口跟踪问题——切换后所有 browser_* 工具操作目标会跟着变。"
+        "【作用】管理浏览器标签页生命周期——列出 / 切换 / 关闭。核心价值是切换后所有 browser_* / get_page() 自动指向新标签页。"
+        "【关键参数】action（list / switch / close / close_others）；tab_index（0 起，switch / close 时必填，list 时忽略）。"
+        "【何时用】(1) click 触发 window.open 或 target=_blank 后，新窗口是另一个 page，必须先 list 看到 → switch 切过去；"
+        "(2) 多标签调试，关闭无用页只保留目标；(3) 不知道当前在哪个 tab → 先 list 看 [当前] 标记。"
+        "【避坑】(1) 不 switch 就直接调 browser_get_text 仍作用在旧 tab，看到结果不一致就先 list；"
+        "(2) close 当前 tab 后 pool._page 自动重置到剩余第一个，但顺序可能变化——重要操作前再 list 一次；"
+        "(3) 浏览器未启动时 list 返回错误，要先 browser_navigate。"
     ),
     params={
         "action": {
@@ -669,9 +681,13 @@ async def browser_tabs(action: str, tab_index: str = "") -> str:
 @registry.tool(
     name="browser_frame",
     description=(
-        "切换操作上下文到指定 iframe，或返回顶层。"
-        "切换后 browser_get_text / click / fill / console_exec 等工具会作用于 iframe 内部。"
-        "适用于现代 Web 应用的 iframe 嵌套架构（超星、微前端等）。"
+        "【作用】切换浏览器操作上下文到 iframe 或返回顶层；切换后 browser_get_text / click / fill / console_exec 等都作用于 iframe 内部。"
+        "【关键参数】selector（iframe 的 CSS 选择器；'top' 或空字符串返回顶层）。"
+        "【何时用】(1) 微前端架构（如超星 / Salesforce LWC）核心内容在嵌套 iframe；(2) 三方支付 / SSO / CAPTCHA 通常在 iframe；"
+        "(3) 富文本编辑器内容。先 browser_get_html 看页面结构含 iframe → 再 browser_frame 切入。"
+        "【避坑】(1) 跨域 iframe 受同源策略，content_frame() 返 None → 失败时考虑直接跳到 iframe.src URL；"
+        "(2) 切完别忘最后 browser_frame('top') 回顶层，否则后续 selector 在 iframe 里查不到顶层元素；"
+        "(3) iframe 重新加载后 frame 引用失效，要重新切。"
     ),
     params={
         "selector": {

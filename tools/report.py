@@ -8,7 +8,18 @@ from agent.tool_registry import registry
 
 @registry.tool(
     name="generate_report",
-    description="将本次信息收集的结果汇总为结构化 Markdown 侦察报告并保存到文件。传入各部分内容即可。",
+    description=(
+        "【作用】把本次侦察的所有发现汇总成结构化 Markdown 报告，自动生成 Top-3 风险卡（critical / high 优先）+ "
+        "ASCII 拓扑图（≤5 节点时）+ LESSONS 命中。保存到 ~/.argus/output/reports/<timestamp>_<target>.md，返回路径。"
+        "【关键参数】target（域名或 URL，必填）；summary（一句话总结，必填）；"
+        "其余 dns_info / subdomains / open_ports / directories / headers / cookies / links / forms / js_analysis / whois_info / additional 都可选——传哪些有数据就填哪些。"
+        "【何时用】每次侦察任务的最后一步。**不要自己拼 Markdown**——Top-3 算法、信号库、风险评分都封装在这里，你拼的不会比它好。"
+        "【避坑】(1) 不传 summary 会被拒；"
+        "(2) additional 是兜底字段，扫描类原始数据全往这塞会让 Top-3 信号库错过 → 优先填到 cookies / forms / links / js_analysis 专用字段；"
+        "(3) Top-3 信号库识别 .git 暴露（critical）/ setup.php / swagger / GraphQL introspection / CORS 反射 / HSTS 缺失 / JSESSIONID 等关键模式，"
+        "原始 dump 文本里包含这些字符串就会命中；"
+        "(4) 已有报告再调一次会产生新文件不会覆盖。"
+    ),
     params={
         "target": {"type": "string", "description": "目标域名或 URL"},
         "summary": {"type": "string", "description": "简要概述本次侦察发现"},
