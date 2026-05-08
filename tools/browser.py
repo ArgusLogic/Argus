@@ -13,6 +13,7 @@ import asyncio
 import contextlib
 import functools
 import os
+import platform
 import time
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
@@ -105,6 +106,24 @@ def _is_headed_from_config() -> bool:
         return False
 
 
+def _coerce_headed_for_environment(headed: bool) -> bool:
+    """issue #19：headless Linux 无 X server 时强制走 headless 并打 warning。
+
+    其它平台或 DISPLAY 已设的情况保留原值。Windows / macOS 没有 DISPLAY 概念。
+    """
+    if not headed:
+        return False
+    if platform.system() != "Linux":
+        return headed
+    if os.environ.get("DISPLAY"):
+        return headed
+    log_warning(
+        "Linux 环境无 $DISPLAY，已强制切换到 headless 模式。"
+        "如需 headed，先 `export DISPLAY=:0` 或用 `xvfb-run` 包裹进程。"
+    )
+    return False
+
+
 DEFAULT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -153,6 +172,8 @@ class BrowserPool:
         """
         if headed is None:
             headed = _is_headed_from_config()
+        # issue #19：headless Linux 无 DISPLAY 时强制 headless，避免 Chromium 启动崩溃
+        headed = _coerce_headed_for_environment(headed)
         async with self._lock:
             await self.health_check()
 
