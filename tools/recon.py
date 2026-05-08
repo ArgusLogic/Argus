@@ -2,7 +2,9 @@
 
 import asyncio
 import contextlib
+import hashlib
 import json
+import secrets
 
 import dns.resolver
 import httpx
@@ -201,6 +203,57 @@ async def subdomain_enum(domain: str, concurrency: str = "20") -> str:
 # ─── 目录爆破 ─────────────────────────────────────────────────────────────────
 
 
+# issue #17: 状态码白名单 —— 真正算"发现"的码（30x 默认不算，除非偏离基线）
+_DIR_HIT_CODES: frozenset[int] = frozenset({200, 201, 204, 401, 403, 405})
+
+
+def _body_fingerprint(content: bytes) -> str:
+    """取 body 前 4096 字节的 sha1 前 16 位作为指纹（用来识别 Vercel/SPA 统一回首页）。"""
+    return hashlib.sha1(content[:4096]).hexdigest()[:16]
+
+
+async def _probe_baseline(client: httpx.AsyncClient, url: str) -> dict:
+    """issue #17: 用 2 条保证不存在的路径打基线，识别 CDN/SPA 全站重定向情况。
+
+    返回 {"codes": set[int], "fps": set[str], "size": int | None, "ok": bool}。
+    探测失败 ok=False，调用方退回老逻辑。
+    """
+    probes = [
+        f"/__argus_baseline_{secrets.token_hex(8)}__",
+        f"/argus_404_{secrets.token_hex(8)}.dummy",
+    ]
+    codes: set[int] = set()
+    fps: set[str] = set()
+    sizes: list[int] = []
+    for probe in probes:
+        try:
+            resp = await client.get(f"{url}{probe}", follow_redirects=False)
+        except Exception:
+            return {"codes": set(), "fps": set(), "size": None, "ok": False}
+        codes.add(resp.status_code)
+        fps.add(_body_fingerprint(resp.content))
+        sizes.append(len(resp.content))
+    return {
+        "codes": codes,
+        "fps": fps,
+        "size": sizes[0] if sizes else None,
+        "ok": True,
+    }
+
+
+def _is_baseline_match(resp: httpx.Response, baseline: dict) -> bool:
+    """命中基线 = 看起来跟"那条不存在路径"一样的响应，应跳过。"""
+    if not baseline.get("ok"):
+        return False
+    if resp.status_code not in baseline["codes"]:
+        return False
+    fp = _body_fingerprint(resp.content)
+    if fp in baseline["fps"]:
+        return True
+    base_size = baseline.get("size")
+    return bool(base_size is not None and abs(len(resp.content) - base_size) < 32)
+
+
 @registry.tool(
     name="dir_bruteforce",
     description="对目标 URL 进行目录/路径枚举，发现隐藏路径和敏感文件",
@@ -223,33 +276,57 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
     raw_wordlist = _load_custom_wordlist("directory_wordlist") or DIRECTORIES
     wordlist = [p if p.startswith("/") else "/" + p for p in raw_wordlist]
 
-    async def check_path(client: httpx.AsyncClient, path: str) -> None:
-        async with target_slot(url), semaphore:
-            target = f"{url}{path}"
-            try:
-                resp = await client.get(target, follow_redirects=False)
-                if resp.status_code < 404:
-                    size = len(resp.content)
-                    found.append(f"  [{resp.status_code}] {path}  ({size} bytes)")
-            except Exception:
-                pass
-
     try:
         async with httpx.AsyncClient(
             timeout=10.0,
             verify=False,
             headers={"User-Agent": "Mozilla/5.0 Argus/0.1"},
         ) as client:
-            tasks = [check_path(client, path) for path in wordlist]
+            # issue #17：先打基线，识别全站重定向 / SPA 回退
+            baseline = await _probe_baseline(client, url)
+
+            async def check_path(path: str) -> None:
+                async with target_slot(url), semaphore:
+                    target = f"{url}{path}"
+                    try:
+                        resp = await client.get(target, follow_redirects=False)
+                    except Exception:
+                        return
+
+                    # 基线匹配 → 假阳性，跳过
+                    if _is_baseline_match(resp, baseline):
+                        return
+
+                    # baseline 探测失败时退回老逻辑（status<404 全报）
+                    if not baseline.get("ok"):
+                        if resp.status_code < 404:
+                            found.append(f"  [{resp.status_code}] {path}  ({len(resp.content)} bytes)")
+                        return
+
+                    # 正常路径：状态码白名单内才算发现
+                    if resp.status_code in _DIR_HIT_CODES:
+                        found.append(f"  [{resp.status_code}] {path}  ({len(resp.content)} bytes)")
+
+            tasks = [check_path(path) for path in wordlist]
             await asyncio.gather(*tasks)
     except Exception as e:
         return f"目录枚举失败: {e}"
 
+    # issue #17：全站重定向警告头
+    header_lines = []
+    if baseline.get("ok") and baseline["codes"] and all(300 <= c < 400 for c in baseline["codes"]):
+        codes_str = ",".join(str(c) for c in sorted(baseline["codes"]))
+        header_lines.append(f"⚠ 目标疑似全站重定向（baseline 状态码 {codes_str}），结果已按基线过滤")
+    elif not baseline.get("ok"):
+        header_lines.append("⚠ baseline 探测失败，已退回宽松判定（status<404 全报）")
+
     if not found:
-        return f"未发现可访问路径（已检测 {len(wordlist)} 个）"
+        msg = f"未发现可访问路径（已检测 {len(wordlist)} 个）"
+        return ("\n".join(header_lines) + "\n" + msg) if header_lines else msg
 
     found.sort()
-    return f"目录枚举 ({url}) — 发现 {len(found)}/{len(wordlist)}:\n" + "\n".join(found)
+    body = f"目录枚举 ({url}) — 发现 {len(found)}/{len(wordlist)}:\n" + "\n".join(found)
+    return ("\n".join(header_lines) + "\n" + body) if header_lines else body
 
 
 # ─── 端口扫描 ─────────────────────────────────────────────────────────────────
