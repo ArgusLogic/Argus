@@ -23,7 +23,14 @@ _SSE_LOG_LIMIT = 200
 
 _network_log: deque = deque(maxlen=_NETWORK_LOG_LIMIT)
 _sse_log: deque = deque(maxlen=_SSE_LOG_LIMIT)
-_listening: bool = False
+
+# Argus 自报告 Bug #2: 旧版本用单个 `_listening: bool` 全局标志，
+# 但 page.on(...) 是 per-page 的，broken-pipe 重连或新建 context 后旧 listener 失效，
+# `_listening=True` 阻止重新注册 → buffer 永远空。
+# 改为 per-context / per-page id 跟踪：context 级 listener（request/response/init_script）
+# 跨 page navigation 存活，page 级 listener（console）必须每个新 page 重注册。
+_listened_context_ids: set[int] = set()  # 已挂载 request/response/init_script 的 context
+_listened_page_ids: set[int] = set()     # 已挂载 console listener 的 page
 
 
 # 页面加载时注入的 JS：劫持 EventSource 和 fetch 的 text/event-stream 响应
@@ -108,68 +115,75 @@ _SSE_INJECT_JS = """
 
 
 async def _ensure_network_listening() -> None:
-    """确保网络监听 + SSE 注入已开启。可被多次调用，幂等。"""
-    global _listening
-    if _listening:
-        return
+    """确保网络监听 + SSE 注入已开启。可被多次调用，幂等。
 
+    Argus 自报告 Bug #2 修复：
+    - request/response 监听绑到 BrowserContext（跨 page navigation 存活）
+    - console 监听必须绑到具体 page（context 不暴露 console 事件）
+    - init_script 一个 context 注册一次即可（自动作用于未来所有 page）
+    - 用 id() 集合跟踪已挂载的 context/page，避免重复注册
+    """
     page = await get_page()
     context = page.context
 
-    # 1) 网络抓包
-    async def on_request(request):
-        _network_log.append(
-            {
-                "type": "request",
-                "method": request.method,
-                "url": request.url,
-                "headers": dict(request.headers),
-                "resource_type": request.resource_type,
-            }
-        )
+    # 1) Context 级网络抓包（跨 page navigation 存活）
+    if id(context) not in _listened_context_ids:
 
-    async def on_response(response):
-        _network_log.append(
-            {
-                "type": "response",
-                "status": response.status,
-                "url": response.url,
-                "headers": dict(response.headers),
-            }
-        )
+        def on_request(request):
+            _network_log.append(
+                {
+                    "type": "request",
+                    "method": request.method,
+                    "url": request.url,
+                    "headers": dict(request.headers),
+                    "resource_type": request.resource_type,
+                }
+            )
 
-    page.on("request", on_request)
-    page.on("response", on_response)
+        def on_response(response):
+            _network_log.append(
+                {
+                    "type": "response",
+                    "status": response.status,
+                    "url": response.url,
+                    "headers": dict(response.headers),
+                }
+            )
 
-    # 2) SSE 桥接：监听 console，过滤 __argus_sse__ 前缀
-    def on_console(msg):
-        try:
-            args = msg.args
-            if not args:
-                return
-            text = msg.text
-            if "__argus_sse__" not in text:
-                return
-            # 提取 JSON 部分
-            idx = text.find("{")
-            if idx < 0:
-                return
-            event = json.loads(text[idx:])
-            _sse_log.append(event)
-        except Exception:
-            pass
+        context.on("request", on_request)
+        context.on("response", on_response)
 
-    page.on("console", on_console)
+        # 在所有未来页面加载时注入 SSE hook（包括子 iframe），per-context 注册一次
+        with contextlib.suppress(Exception):
+            await context.add_init_script(_SSE_INJECT_JS)
 
-    # 3) 在所有未来页面加载时注入 SSE hook（包括子 iframe）
-    with contextlib.suppress(Exception):
-        await context.add_init_script(_SSE_INJECT_JS)
+        _listened_context_ids.add(id(context))
 
-    # 4) 当前页面立即注入一次（init_script 仅作用于未来加载）
-    with contextlib.suppress(Exception):
-        await page.evaluate(_SSE_INJECT_JS)
+    # 2) Page 级 console listener（SSE 桥接：context 不暴露 console 事件）
+    if id(page) not in _listened_page_ids:
 
-    _listening = True
+        def on_console(msg):
+            try:
+                if not msg.args:
+                    return
+                text = msg.text
+                if "__argus_sse__" not in text:
+                    return
+                idx = text.find("{")
+                if idx < 0:
+                    return
+                event = json.loads(text[idx:])
+                _sse_log.append(event)
+            except Exception:
+                pass
+
+        page.on("console", on_console)
+
+        # 当前页面立即注入一次（init_script 仅作用于未来加载，已加载的页面要补一次）
+        with contextlib.suppress(Exception):
+            await page.evaluate(_SSE_INJECT_JS)
+
+        _listened_page_ids.add(id(page))
 
 
 @registry.tool(

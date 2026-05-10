@@ -3,7 +3,8 @@
 架构：BrowserPool 单例封装 Playwright 资源（playwright/browser/context/page），提供：
 - get_page(): 健康检查 + 自愈（崩溃后自动重建）
 - close(): 释放全部资源
-- asyncio.Lock 保护：为子代理并行使用做准备（多协程不会同时初始化）
+- BrowserPool._lock: 保护资源生命周期（创建/销毁），避免多协程同时初始化
+- _navigation_lock: 序列化所有 page 级操作（Argus 自报告 Bug #1），防子代理并发覆盖
 - max_idle_seconds: 长时间空闲后主动释放资源，避免 Chromium 内存泄漏
 
 向后兼容：保留 `get_page()` 和 `close_browser()` 模块级函数。
@@ -12,6 +13,7 @@
 import asyncio
 import contextlib
 import functools
+import json
 import os
 import platform
 import time
@@ -120,6 +122,37 @@ def _retry_on_broken_pipe(
                 await _pool.close()
             return await fn(*args, **kwargs)
         return result
+
+    return wrapper
+
+
+# ─── Bug #1 (Argus 自报告): 浏览器操作串行化 ─────────────────────────────────
+# 多个子代理共享同一 BrowserPool 单例时，并发的 browser_navigate 会互相覆盖
+# 当前 page，导致全部超时。BrowserPool._lock 只保护资源生命周期（创建/销毁），
+# 不保护页面操作。这里用一把独立的 _navigation_lock 序列化所有 page 级动作。
+#
+# 单代理影响：单代理本来就顺序调用 LLM → 顺序调工具，加锁开销 ~0
+# 多代理影响：自动串行，正确性优先于吞吐
+_navigation_lock: asyncio.Lock = asyncio.Lock()
+
+
+def _serialize_browser_ops(
+    fn: Callable[..., Awaitable[_T]],
+) -> Callable[..., Awaitable[_T]]:
+    """装饰器：所有 browser_* 工具持锁执行，避免并发改 page 状态互相覆盖。
+
+    装饰器顺序约定（由内到外）：
+        @_serialize_browser_ops   # 外层先抢锁
+        @_retry_on_broken_pipe    # 内层持锁后重试
+        async def browser_xxx():
+
+    这样重试期间锁仍被本协程持有，新协程在外面排队，不会出现死锁或竞争。
+    """
+
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):  # type: ignore[no-untyped-def]
+        async with _navigation_lock:
+            return await fn(*args, **kwargs)
 
     return wrapper
 
@@ -334,11 +367,18 @@ async def get_browser_session(url: str | None = None) -> dict:
 
 @registry.tool(
     name="browser_navigate",
-    description="打开浏览器访问指定 URL，返回页面标题、最终 URL 和 HTTP 状态码",
+    description=(
+        "打开浏览器访问指定 URL，返回页面标题、最终 URL 和 HTTP 状态码。"
+        "【避坑】对已登录的 OAuth/SPA（Gemini / Google / Microsoft / OneDrive 等），"
+        "browser_navigate 等价于地址栏回车——触发完整页面重载，auth guard 会重检 cookie "
+        "并可能清掉 session（已观察到 Gemini 登出现象）。已经登录的 SPA 想换页时，优先用 "
+        "`browser_click` 走 SPA 内部路由（History API/router），cookie 和 JS 状态保留。"
+    ),
     params={
         "url": {"type": "string", "description": "要访问的目标 URL"},
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_navigate(url: str) -> str:
     url = sanitize_url(url)
@@ -364,6 +404,7 @@ async def browser_navigate(url: str) -> str:
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_get_html(selector: str = "") -> str:
     await get_page()
@@ -394,6 +435,7 @@ async def browser_get_html(selector: str = "") -> str:
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_get_text(selector: str = "") -> str:
     await get_page()
@@ -424,6 +466,7 @@ async def browser_get_text(selector: str = "") -> str:
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_screenshot(filename: str = "screenshot.png") -> str:
     page = await get_page()
@@ -446,6 +489,7 @@ async def browser_screenshot(filename: str = "screenshot.png") -> str:
         "script": {"type": "string", "description": "要执行的 JavaScript 代码"},
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_console_exec(script: str) -> str:
     await get_page()
@@ -459,6 +503,55 @@ async def browser_console_exec(script: str) -> str:
         return f"JS 执行失败: {e}"
 
 
+# Argus 自报告 Bug #4: 仅允许 dotted/bracketed 路径，禁止函数调用、赋值、语句分隔符。
+# 让 LLM 安全读 JS 全局上下文（取动态 token），无需走更危险的 browser_console_exec。
+_JS_VAR_PATH_FORBIDDEN_CHARS = set("();={}<>")
+
+
+@registry.tool(
+    name="browser_get_js_var",
+    description=(
+        "【作用】从浏览器当前 page 的 JS 全局上下文读取一个变量值——专为同步动态 token 设计。"
+        "【关键参数】path：JS 表达式（如 'window.WIZ_global_data.SNlM0e'、"
+        "'document.title'、'location.href'）。"
+        "【何时用】(1) Google batchexecute 的 at / SAPISIDHASH 等每次请求会刷新的 token；"
+        "(2) SPA 暴露在 window.* 上的 CSRF / build-id / nonce；"
+        "(3) 任意需要读 JS 实时状态再塞进 http_request 的场景。"
+        "【避坑】只读：path 不能含 ()/;/=/{/}/<>，想跑函数请用 browser_console_exec。"
+        "需先 browser_navigate 到目标页面。返回值用 JSON 序列化。"
+    ),
+    params={
+        "path": {
+            "type": "string",
+            "description": "JS 路径表达式，如 'window.WIZ_global_data.SNlM0e' 或 'document.cookie'",
+        },
+    },
+)
+@_serialize_browser_ops
+@_retry_on_broken_pipe
+async def browser_get_js_var(path: str) -> str:
+    p = (path or "").strip()
+    if not p:
+        return "browser_get_js_var: path 不能为空"
+    bad = sorted({c for c in p if c in _JS_VAR_PATH_FORBIDDEN_CHARS})
+    if bad:
+        return (
+            f"browser_get_js_var: path 含禁用字符 {bad!r}（防任意代码执行）；"
+            f"想跑函数表达式请用 browser_console_exec"
+        )
+    page = await get_page()
+    try:
+        # 用 () => path 包装：path 是值表达式，()/;/=/{ 等已被前置校验拦截
+        value = await page.evaluate(f"() => {p}")
+        try:
+            rendered = json.dumps(value, ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            rendered = repr(value)
+        return truncate(f"{p} = {rendered}")
+    except Exception as e:
+        return f"读取 {p} 失败: {e}"
+
+
 @registry.tool(
     name="browser_click",
     description="点击页面上指定的元素",
@@ -466,6 +559,7 @@ async def browser_console_exec(script: str) -> str:
         "selector": {"type": "string", "description": "要点击的元素的 CSS 选择器"},
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_click(selector: str) -> str:
     page = await get_page()
@@ -489,6 +583,7 @@ async def browser_click(selector: str) -> str:
         "value": {"type": "string", "description": "要填入的文本"},
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_fill(selector: str, value: str) -> str:
     await get_page()
@@ -539,6 +634,7 @@ _BUILTIN_WAITS = {"page_loaded", "network_idle", "ajax_complete", "sse_closed", 
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_wait_for(condition: str, timeout: str = "30000", poll_interval: str = "500") -> str:
     import time as _time
@@ -631,6 +727,7 @@ async def browser_wait_for(condition: str, timeout: str = "30000", poll_interval
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_tabs(action: str, tab_index: str = "") -> str:
     pool = get_pool()
@@ -728,6 +825,7 @@ async def browser_tabs(action: str, tab_index: str = "") -> str:
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_frame(selector: str = "") -> str:
     pool = get_pool()
@@ -769,6 +867,7 @@ async def browser_frame(selector: str = "") -> str:
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_upload(selector: str, file_path: str) -> str:
     from utils.safe_path import is_path_allowed
@@ -812,6 +911,7 @@ async def browser_upload(selector: str, file_path: str) -> str:
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_keyboard(type: str, key: str, selector: str = "") -> str:
     page = await get_page()
@@ -873,6 +973,7 @@ async def browser_keyboard(type: str, key: str, selector: str = "") -> str:
         },
     },
 )
+@_serialize_browser_ops
 @_retry_on_broken_pipe
 async def browser_download(save_path: str, trigger_selector: str = "", timeout: str = "30000") -> str:
     page = await get_page()

@@ -3,7 +3,9 @@
 设计要点：
 - 主代理通过 `delegate_subagents` 工具一次启动 N 个独立子任务
 - 每个子代理是轻量化 engine：独立 messages 列表 + 共享 LLM/registry/BrowserPool
-- 浏览器并发安全：BrowserPool 内置 asyncio.Lock 序列化访问
+- 浏览器并发安全：tools.browser._navigation_lock 序列化所有页面操作（Argus 自报告 Bug #1）
+  注意：BrowserPool._lock 只保护资源生命周期（创建/销毁），不保护 page 操作；
+  并发的 browser_navigate 必须靠 _navigation_lock 串行才能避免互相覆盖
 - MEMORY 共享只读：子代理拿到主代理的 memory_block 注入 system prompt，但不能写
 - 防递归：子代理工具集排除 `delegate_subagents`，避免无限分裂
 - 防失控：每个子代理有 max_subturns（默认 20）和总 timeout
