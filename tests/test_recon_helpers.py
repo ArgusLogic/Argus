@@ -132,3 +132,57 @@ class TestLoadCustomWordlist:
         )
         monkeypatch.setattr("utils.paths.CONFIG_PATH", str(cfg))
         assert _load_custom_wordlist("subdomain_wordlist") is None
+
+
+# ─── Bug 1 (Coco 报告): port_scan 多 IP 只扫首个 ────────────────────────────
+
+
+class TestPortScanMultiIP:
+    @pytest.mark.asyncio
+    async def test_multi_ip_hostname_uses_first_ip(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """hostname 解析到多个 IP 时，只把首个 IP 传给 nmap。"""
+        from tools import recon
+
+        # mock _resolve_ips 返回 3 个 IP
+        async def fake_resolve(sub: str, domain: str) -> list[str]:
+            return ["1.2.3.4", "5.6.7.8", "9.10.11.12"]
+
+        captured: dict[str, str] = {}
+
+        class FakeScanner:
+            def scan(self, hosts: str, ports: str, arguments: str) -> None:
+                captured["hosts"] = hosts
+
+            def all_hosts(self) -> list:
+                return []
+
+        monkeypatch.setattr(recon, "_resolve_ips", fake_resolve)
+        monkeypatch.setattr(recon.nmap, "PortScanner", FakeScanner)
+
+        await recon.port_scan("multi-ip.example.com", "80")
+
+        assert captured["hosts"] == "1.2.3.4", "应只把首个 IP 传给 nmap，避免对所有 IP 全扫"
+
+    @pytest.mark.asyncio
+    async def test_already_ip_passthrough(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """target 本身是 IP 时不做 DNS 解析，直接传 nmap。"""
+        from tools import recon
+
+        captured: dict[str, str] = {}
+
+        class FakeScanner:
+            def scan(self, hosts: str, ports: str, arguments: str) -> None:
+                captured["hosts"] = hosts
+
+            def all_hosts(self) -> list:
+                return []
+
+        async def must_not_call(*args, **kw):  # noqa: ANN001,ANN002,ANN003
+            raise AssertionError("IP 不应触发 DNS 解析")
+
+        monkeypatch.setattr(recon, "_resolve_ips", must_not_call)
+        monkeypatch.setattr(recon.nmap, "PortScanner", FakeScanner)
+
+        await recon.port_scan("8.8.8.8", "53")
+
+        assert captured["hosts"] == "8.8.8.8"

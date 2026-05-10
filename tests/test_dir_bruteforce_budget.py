@@ -113,7 +113,9 @@ async def test_dir_bruteforce_unreachable_early_stop() -> None:
     ):
         out = await recon.dir_bruteforce("https://example.com", concurrency="1")
 
+    assert "[ABORTED:UNREACHABLE]" in out  # Bug 4: 机器可读 token
     assert "不可达" in out or "离线" in out
+    assert "不要继续" in out  # 强建议给 LLM
     assert calls["n"] < 100  # 大部分 task 都被早停跳过
 
 

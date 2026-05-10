@@ -12,7 +12,7 @@ import nmap
 
 from agent.tool_registry import registry
 from tools.recon_wordlists import DIRECTORIES, SUBDOMAINS
-from utils.logger import log_warning
+from utils.logger import log_info, log_warning
 from utils.rate_limiter import target_slot
 from utils.sanitizer import sanitize_url, truncate
 
@@ -507,12 +507,14 @@ async def dir_bruteforce(url: str, concurrency: str = "10") -> str:
         )
     elif reason == "rate_limited":
         header_lines.append(
-            f"🛑 检测到连续 {_DIR_RATE_LIMIT_STREAK} 次 429/503，疑似 WAF / 限流触发；"
-            f"建议降低 concurrency 或改用授权的扫描窗口"
+            f"[ABORTED:RATE_LIMITED] 检测到连续 {_DIR_RATE_LIMIT_STREAK} 次 429/503，"
+            f"疑似 WAF / 限流触发；建议降低 concurrency / 加延时 / 等几分钟再试"
         )
     elif reason == "unreachable":
         header_lines.append(
-            f"🛑 连续 {_DIR_ERROR_STREAK} 次请求失败，目标疑似不可达 / 离线；已提前停止"
+            f"[ABORTED:UNREACHABLE] 连续 {_DIR_ERROR_STREAK} 次请求失败，目标不可达 / 离线。"
+            f"**不要继续对该 URL 调用其他主动扫描工具**（dir / port / vuln_*）；"
+            f"建议检查目标 URL / 网络 / 是否需要代理后再重试"
         )
 
     if not found:
@@ -544,9 +546,21 @@ async def port_scan(
 ) -> str:
     target = target.strip()
 
+    # Bug 1 修复：先 DNS 解析，仅扫首个 IP（避免 hostname 多 A 记录导致 nmap 全扫超时）
+    import ipaddress as _ipaddress
+    host_for_nmap = target
+    try:
+        _ipaddress.ip_address(target)  # 已是 IP
+    except ValueError:
+        ips = await _resolve_ips("", target)
+        if ips:
+            host_for_nmap = ips[0]
+            if len(ips) > 1:
+                log_info(f"port_scan: {target} 解析到 {len(ips)} 个 IP，仅扫描首个 {ips[0]}")
+
     def _scan():
         nm = nmap.PortScanner()
-        nm.scan(hosts=target, ports=ports, arguments="-sT -T4 --open")
+        nm.scan(hosts=host_for_nmap, ports=ports, arguments="-sT -T4 --open")
         return nm
 
     try:
