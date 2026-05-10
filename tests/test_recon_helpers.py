@@ -186,3 +186,129 @@ class TestPortScanMultiIP:
         await recon.port_scan("8.8.8.8", "53")
 
         assert captured["hosts"] == "8.8.8.8"
+
+
+# ─── Hermes-C 报告 Bug 01+03: IP 段分类标注 ────────────────────────────────
+
+
+class TestClassifyIP:
+    """_classify_ip: 公网域名解析到保留段 = 数据可疑信号。"""
+
+    def test_public_ip_returns_none(self) -> None:
+        from tools.recon import _classify_ip
+
+        assert _classify_ip("8.8.8.8") is None
+        assert _classify_ip("1.1.1.1") is None
+
+    def test_rfc1918_internal(self) -> None:
+        from tools.recon import _classify_ip
+
+        for ip in ("10.0.0.1", "172.16.5.5", "192.168.1.1"):
+            label = _classify_ip(ip)
+            assert label is not None
+            assert "RFC1918" in label
+
+    def test_rfc2544_fake_ip_section(self) -> None:
+        """198.18.0.0/15 = WSL2 mihomo fake-IP / proxy 回环——必须明确标注。"""
+        from tools.recon import _classify_ip
+
+        for ip in ("198.18.0.73", "198.18.32.63", "198.19.255.255"):
+            label = _classify_ip(ip)
+            assert label is not None
+            assert "RFC2544" in label
+            assert "fake-IP" in label or "代理回环" in label, "标签必须提示用户这可能是代理回环"
+
+    def test_loopback_and_linklocal(self) -> None:
+        from tools.recon import _classify_ip
+
+        assert "回环" in (_classify_ip("127.0.0.1") or "")
+        assert "RFC3927" in (_classify_ip("169.254.10.10") or "")
+
+    def test_invalid_ip_returns_none(self) -> None:
+        from tools.recon import _classify_ip
+
+        assert _classify_ip("not-an-ip") is None
+        assert _classify_ip("") is None
+
+
+class TestDnsLookupReservedTagging:
+    """dns_lookup 命中保留段时必须打标签 + 末尾警告。"""
+
+    @pytest.mark.asyncio
+    async def test_a_record_in_reserved_segment_is_tagged(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A 记录解析到 198.18.x.x → 应内联标注 + 尾部强警告。"""
+        from tools import recon
+
+        class _FakeRdata:
+            def __init__(self, s: str) -> None:
+                self._s = s
+
+            def __str__(self) -> str:
+                return self._s
+
+        def fake_resolve(domain: str, rtype: str):  # noqa: ANN001
+            if rtype == "A":
+                return [_FakeRdata("198.18.32.63")]
+            raise recon.dns.resolver.NoAnswer()
+
+        monkeypatch.setattr(recon.dns.resolver, "resolve", fake_resolve)
+
+        out = await recon.dns_lookup("httpbin.org", record_type="A")
+        # 内联标签
+        assert "[⚠" in out
+        assert "RFC2544" in out
+        # 尾部强警告
+        assert "fake-IP" in out or "代理回环" in out
+        assert "数据可信度低" in out
+
+    @pytest.mark.asyncio
+    async def test_public_a_record_no_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """正常公网 IP 不应有保留段警告。"""
+        from tools import recon
+
+        class _FakeRdata:
+            def __init__(self, s: str) -> None:
+                self._s = s
+
+            def __str__(self) -> str:
+                return self._s
+
+        def fake_resolve(domain: str, rtype: str):  # noqa: ANN001
+            if rtype == "A":
+                return [_FakeRdata("8.8.8.8")]
+            raise recon.dns.resolver.NoAnswer()
+
+        monkeypatch.setattr(recon.dns.resolver, "resolve", fake_resolve)
+
+        out = await recon.dns_lookup("dns.google", record_type="A")
+        assert "[⚠" not in out
+        assert "数据可信度低" not in out
+        assert "8.8.8.8" in out
+
+
+class TestDnsLookupTxtFullBytes:
+    """Hermes-C 报告 Bug 04: TXT 用 .strings 拼接拿完整字节，避免 str() 引号截断。"""
+
+    @pytest.mark.asyncio
+    async def test_txt_record_uses_full_strings(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from tools import recon
+
+        # 模拟 dnspython TXT rdata：strings 是 list[bytes]，str() 表达可能引入边界
+        full_txt = "v=spf1 include:%{i}._ip.%{h}._ehlo.%{d}._spf.vali.email ~all"
+
+        class _FakeTxtRdata:
+            strings = (full_txt.encode("utf-8"),)
+
+            def __str__(self) -> str:
+                # 模拟 str() 截断到引号边界（这是 Bug 04 描述的现象）
+                return '"v=spf1 include:%{i}._ip.%{h}._ehlo.%{d}._spf.val'
+
+        def fake_resolve(domain: str, rtype: str):  # noqa: ANN001
+            if rtype == "TXT":
+                return [_FakeTxtRdata()]
+            raise recon.dns.resolver.NoAnswer()
+
+        monkeypatch.setattr(recon.dns.resolver, "resolve", fake_resolve)
+
+        out = await recon.dns_lookup("test.example", record_type="TXT")
+        assert full_txt in out, "TXT 应输出完整内容（来自 .strings），而非 str() 截断的部分"

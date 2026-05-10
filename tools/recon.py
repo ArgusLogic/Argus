@@ -127,12 +127,30 @@ async def dns_lookup(domain: str, record_type: str = "ALL") -> str:
     )
 
     results = []
+    reserved_ip_count = 0  # Hermes-C Bug 01+03: 累计保留段命中数，用于尾部警告
     for rtype in record_types:
         try:
             answers = dns.resolver.resolve(domain, rtype)
             records = []
             for rdata in answers:
-                records.append(str(rdata))
+                # Hermes-C Bug 04: TXT 用 .strings 拼接拿完整字节，避免 str() 引号截断
+                if rtype == "TXT":
+                    try:
+                        txt = b"".join(rdata.strings).decode("utf-8", errors="replace")
+                        records.append(f'"{txt}"')
+                    except (AttributeError, UnicodeDecodeError):
+                        records.append(str(rdata))
+                # Hermes-C Bug 01+03: A/AAAA 命中保留段加内联警告
+                elif rtype in ("A", "AAAA"):
+                    ip = str(rdata)
+                    label = _classify_ip(ip)
+                    if label:
+                        reserved_ip_count += 1
+                        records.append(f"{ip} [⚠ {label}]")
+                    else:
+                        records.append(ip)
+                else:
+                    records.append(str(rdata))
             if records:
                 results.append(f"  {rtype}: {', '.join(records)}")
         except dns.resolver.NoAnswer:
@@ -147,7 +165,17 @@ async def dns_lookup(domain: str, record_type: str = "ALL") -> str:
     if not results:
         return f"未查询到 {domain} 的 DNS 记录"
 
-    return f"DNS 查询结果 ({domain}):\n" + "\n".join(results)
+    body = f"DNS 查询结果 ({domain}):\n" + "\n".join(results)
+
+    # Hermes-C Bug 01+03: 解析到保留段时尾部强警告（公网域名→保留段 = 数据不可信）
+    if reserved_ip_count > 0:
+        body += (
+            f"\n\n⚠ {reserved_ip_count} 个 IP 落在保留段——可能为 fake-IP / 代理回环 / NAT；"
+            f"网络层数据可信度低，端口扫描和 HTTP 探测结果可能为代理层假象。"
+            f"建议在直连环境下重测以验证。"
+        )
+
+    return body
 
 
 # ─── 子域名枚举 ──────────────────────────────────────────────────────────────
@@ -217,6 +245,34 @@ def _match_reserved_cidr(ip: str) -> str | None:
         if _ip_in_cidr(ip, cidr):
             return cidr
     return None
+
+
+# Hermes-C 报告 Bug 01+03: 公网域名解析到保留段是高度可疑信号（fake-IP / 代理回环 / NAT）
+# 提供给 dns_lookup / port_scan 内联标注，让 LLM 立刻识别"数据可能不可信"
+_RESERVED_LABEL: dict[str, str] = {
+    "10.0.0.0/8": "RFC1918 内网",
+    "172.16.0.0/12": "RFC1918 内网",
+    "192.168.0.0/16": "RFC1918 内网",
+    "100.64.0.0/10": "RFC6598 CGNAT",
+    "198.18.0.0/15": "RFC2544 基准测试段(fake-IP/代理回环)",
+    "203.0.113.0/24": "RFC5737 文档示例段",
+    "198.51.100.0/24": "RFC5737 文档示例段",
+    "192.0.2.0/24": "RFC5737 文档示例段",
+    "127.0.0.0/8": "回环地址",
+    "169.254.0.0/16": "RFC3927 链路本地",
+}
+
+
+def _classify_ip(ip: str) -> str | None:
+    """若 ip 在已知保留段，返回精简标签（用于内联标注），否则 None。
+
+    Hermes-C 报告 Bug 01+03 修复：公网域名 A 记录 / 端口扫描结果指向保留段时，
+    LLM 必须知道这是"数据可疑"信号，否则会把代理回环假端口当真漏洞写进报告。
+    """
+    cidr = _match_reserved_cidr(ip)
+    if cidr is None:
+        return None
+    return _RESERVED_LABEL.get(cidr, cidr)
 
 
 def _ip_in_any_cidr(ip: str, cidrs: set[str]) -> bool:
@@ -588,6 +644,16 @@ async def port_scan(
         note = await _reserved_range_note(target)
         base = f"未发现 {target} 的开放端口"
         return base + "\n" + note if note else base
+
+    # Hermes-C Bug 01+03: 即使扫到端口也要警告——保留段端口很可能是代理回环假象
+    reserved_label = _classify_ip(host_for_nmap)
+    if reserved_label:
+        warning = (
+            f"⚠ 目标 IP {host_for_nmap} 落在保留段（{reserved_label}）；"
+            f"端口结果可能为代理层 / NAT 回环假端口，**不要据此生成漏洞结论**。"
+            f"请确认是否在 fake-IP / WSL2 mihomo / SOCKS 代理环境下，必要时直连重测。\n"
+        )
+        return warning + "端口扫描结果:\n" + "\n".join(results)
 
     return "端口扫描结果:\n" + "\n".join(results)
 

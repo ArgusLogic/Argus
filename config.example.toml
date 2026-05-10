@@ -102,8 +102,18 @@ per_target_concurrency = 20
 
 # ── 自定义字典（issue #7）─────────────────────────────────────────────────
 # 留空 = 用内置字典；指向文件则按行读取（# 起始行视为注释）。
-# subdomain_wordlist = "~/wordlists/subs-100k.txt"
-# directory_wordlist = "~/wordlists/raft-medium.txt"
+#
+# 内置默认（速度优先）：
+#   subdomain_wordlist 内置 SecLists Top-2000  → 快速扫描 ~30s
+#   directory_wordlist 内置 ~190 条常见路径    → 快速扫描 <10s
+#
+# 想要更全？强烈推荐用 SecLists（https://github.com/danielmiessler/SecLists）：
+#   git clone --depth=1 https://github.com/danielmiessler/SecLists ~/SecLists
+#   subdomain_wordlist = "~/SecLists/Discovery/DNS/subdomains-top1million-110000.txt"  # 110k → ~3min
+#   directory_wordlist = "~/SecLists/Discovery/Web-Content/raft-medium-directories.txt" # 30k → ~2min
+#
+# 注意: 词表越大扫描越慢。dir_bruteforce 有 30s 墙钟预算，超过自动收尾；
+# 想完整跑大词表请提高 [general].tool_timeout。
 subdomain_wordlist = ""
 directory_wordlist = ""
 
