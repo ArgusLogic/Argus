@@ -117,7 +117,10 @@ directory_wordlist = ""
 [tools.system_exec]
 enabled = false
 # 可选：自定义白名单。留空 / 不设此项则用内置白名单（whoami/git/ps/ls 等只读类）
+# 注意: python/node/npm/pip/go/rustc 不在默认白名单——它们可执行任意代码绕过白名单
+#       (例: python -c "import os;os.system('rm -rf /')")。如需，请显式列出并知悉风险。
 # allowed_commands = ["whoami", "hostname", "git", "ps", "tasklist"]
+# allowed_commands = [..., "python", "node"]   # 显式 opt-in 解释器
 
 # ── 自演化 / Skills ────────────────────────────────────────────────────────
 [skills]

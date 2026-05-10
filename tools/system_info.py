@@ -144,8 +144,11 @@ _DEFAULT_ALLOWED_COMMANDS: Final[tuple[str, ...]] = (
     "wc", "where", "which", "stat", "file",
     # 进程/资源
     "ps", "tasklist", "top", "df", "du", "free", "vmstat",
-    # 开发者工具（只读子命令由 LLM 配合，但工具层只校验主命令）
-    "git", "python", "python3", "node", "npm", "pip", "go", "rustc",
+    # 开发者工具（git 只读子命令为主，攻击面有限；保留）
+    "git",
+    # Bug 5 (Coco 报告): python/python3/node/npm/pip/go/rustc 已从默认白名单移除
+    # 它们可执行任意代码 (python -c "import os; os.system(...)") 绕过白名单安全意图
+    # 如确需，请在 config.toml [tools.system_exec].allowed_commands 中显式列出
     # 文本处理（只读）
     "sort", "uniq", "grep", "findstr", "awk", "sed",
 )

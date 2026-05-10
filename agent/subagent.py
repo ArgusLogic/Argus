@@ -28,6 +28,16 @@ if TYPE_CHECKING:
     from agent.tool_registry import ToolRegistry
 
 
+# Bug 2 (Coco 报告): 子代理硬黑名单——这些工具会污染主代理持久状态
+# 即使 system prompt 说"只读"，LLM 也可能违反；必须工具层硬隔离
+_SUBAGENT_BLOCKED_TOOLS: frozenset[str] = frozenset({
+    "delegate_subagents",   # 防递归分裂
+    "memory_manage",        # 不能改主 MEMORY.md / USER.md / LESSONS.md
+    "skill_manage",         # 不能改 skills/
+    "project_delete",       # 不能删主项目存档
+})
+
+
 SUBAGENT_SYSTEM_PROMPT = """你是 Argus 主 Agent 派出的子代理（subagent），负责完成一个**聚焦的子任务**。
 
 # 角色约束
@@ -108,11 +118,16 @@ class SubAgent:
         return "\n".join(parts)
 
     def _filter_tools_schema(self, all_tools: list[dict], allowed: list[str] | None) -> list[dict]:
-        """过滤工具：排除 delegate_subagents，可选只保留白名单。"""
+        """过滤工具：排除会污染主代理状态的工具，可选再叠加白名单。
+
+        Bug 2 (Coco 报告) 修复：原版本只排除 delegate_subagents，但子代理仍然能调
+        memory_manage / skill_manage / project_delete 篡改主代理的持久状态。
+        子 agent 应只读使用主 agent 的 memory，不能写。
+        """
         result = []
         for t in all_tools:
             name = t.get("function", {}).get("name", "")
-            if name == "delegate_subagents":
+            if name in _SUBAGENT_BLOCKED_TOOLS:
                 continue
             if allowed is not None and name not in allowed:
                 continue

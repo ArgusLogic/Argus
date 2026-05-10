@@ -233,3 +233,46 @@ class TestGlobalOrchestrator:
         # 清空
         set_global_orchestrator(None)
         assert get_global_orchestrator() is None
+
+
+class TestSubAgentToolFilter:
+    """Bug 2 (Coco 报告): 子代理黑名单覆盖 memory/skill/project_delete 等会污染主代理状态的工具。"""
+
+    def _make_schema_entry(self, name: str) -> dict:
+        return {"type": "function", "function": {"name": name, "description": "x", "parameters": {}}}
+
+    def test_blocks_memory_skill_project_delegate(self) -> None:
+        from agent.subagent import _SUBAGENT_BLOCKED_TOOLS, SubAgent
+
+        agent = SubAgent(llm=MagicMock(), registry=ToolRegistry())
+        all_schema = [
+            self._make_schema_entry(n)
+            for n in [
+                "dns_lookup",
+                "http_request",
+                "memory_manage",
+                "skill_manage",
+                "delegate_subagents",
+                "project_delete",
+                "project_save",
+                "generate_report",
+            ]
+        ]
+
+        filtered = agent._filter_tools_schema(all_schema, allowed=None)
+        names = {t["function"]["name"] for t in filtered}
+
+        # 黑名单内的全被排除
+        assert names.isdisjoint(_SUBAGENT_BLOCKED_TOOLS)
+        # 允许的仍然在
+        assert "dns_lookup" in names
+        assert "http_request" in names
+        assert "generate_report" in names
+        assert "project_save" in names  # 保存项目允许，删除不允许
+
+    def test_blocked_tools_constant_covers_critical_tools(self) -> None:
+        """硬断言：4 个关键工具必须在黑名单里（防止未来不慎删除）。"""
+        from agent.subagent import _SUBAGENT_BLOCKED_TOOLS
+
+        for required in ("delegate_subagents", "memory_manage", "skill_manage", "project_delete"):
+            assert required in _SUBAGENT_BLOCKED_TOOLS, f"{required} 必须在子代理黑名单内"

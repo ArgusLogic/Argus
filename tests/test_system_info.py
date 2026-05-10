@@ -157,6 +157,18 @@ async def test_default_whitelist_contains_safe_commands() -> None:
         assert danger not in safe, f"危险命令 {danger!r} 不应出现在默认白名单"
 
 
+async def test_default_whitelist_excludes_interpreters() -> None:
+    """Bug 5 (Coco 报告): python/node 等可执行任意代码的解释器不应在默认白名单。"""
+    safe = set(sysinfo._DEFAULT_ALLOWED_COMMANDS)
+    for interp in ("python", "python3", "node", "npm", "pip", "go", "rustc"):
+        assert interp not in safe, (
+            f"{interp!r} 可执行任意代码 (例: {interp} -c 'os.system(...)' )，"
+            f"不应在默认白名单；如需请显式 opt-in"
+        )
+    # git 仍保留（攻击面有限，高频）
+    assert "git" in safe, "git 应保留在默认白名单（高频且只读子命令为主）"
+
+
 # ─── 集成 ───────────────────────────────────────────────────────────────────
 
 
