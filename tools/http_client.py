@@ -3,12 +3,27 @@
 import json
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
 from agent.tool_registry import registry
+from utils.logger import log_warning
 from utils.paths import OUTPUT_DIR
 from utils.sanitizer import sanitize_filename, sanitize_url, truncate
+
+# Bug 3 (Coco 报告): per-host 连续超时熔断
+# 同一 host 连续 3 次超时 → 本 session 内不再访问，避免 LLM 反复重试浪费时间/token
+_HTTP_TIMEOUT_SECONDS: float = 30.0
+_HTTP_TIMEOUT_STREAK_LIMIT: int = 3
+_HTTP_HOST_TIMEOUT_STREAK: dict[str, int] = {}
+_HTTP_HOST_CIRCUIT_OPEN: set[str] = set()
+
+
+def _reset_http_circuit() -> None:
+    """测试用：清空熔断状态。"""
+    _HTTP_HOST_TIMEOUT_STREAK.clear()
+    _HTTP_HOST_CIRCUIT_OPEN.clear()
 
 
 @registry.tool(
@@ -73,6 +88,14 @@ async def http_request(
     url = sanitize_url(url)
     method = method.upper()
 
+    # Bug 3: per-host 熔断检查
+    host = (urlparse(url).hostname or "").lower()
+    if host and host in _HTTP_HOST_CIRCUIT_OPEN:
+        return (
+            f"[CIRCUIT_OPEN] HTTP 请求拒绝：{host} 已连续 {_HTTP_TIMEOUT_STREAK_LIMIT} 次超时，本 session 内不再访问。\n"
+            f"建议改用 browser_navigate（带 JS 渲染，可能绕过反爬）或换其他目标。"
+        )
+
     custom_headers: dict = {}
     if headers:
         try:
@@ -103,7 +126,7 @@ async def http_request(
 
     try:
         async with httpx.AsyncClient(
-            timeout=60.0,
+            timeout=_HTTP_TIMEOUT_SECONDS,  # Bug 3: 30s（之前 60s 太长）
             follow_redirects=True,
             verify=False,
         ) as client:
@@ -143,6 +166,10 @@ async def http_request(
             except (LookupError, ValueError):
                 text = raw_bytes.decode("utf-8", errors="replace")
 
+            # Bug 3: 成功路径 → 重置该 host 的超时计数
+            if host:
+                _HTTP_HOST_TIMEOUT_STREAK.pop(host, None)
+
             return (
                 f"状态码: {resp.status_code}\n"
                 f"URL: {resp.url}\n"
@@ -150,5 +177,22 @@ async def http_request(
                 f"响应头:\n{resp_headers}\n"
                 f"响应体 ({len(raw_bytes)} 字节):\n{truncate(text, 4000)}"
             )
+    except httpx.TimeoutException as e:
+        # Bug 3: 单独处理超时 → 累加 host 计数，达到阈值熔断
+        if host:
+            streak = _HTTP_HOST_TIMEOUT_STREAK.get(host, 0) + 1
+            _HTTP_HOST_TIMEOUT_STREAK[host] = streak
+            if streak >= _HTTP_TIMEOUT_STREAK_LIMIT:
+                _HTTP_HOST_CIRCUIT_OPEN.add(host)
+                log_warning(f"http_request 熔断: {host} 连续 {streak} 次超时")
+                return (
+                    f"[CIRCUIT_OPEN] HTTP 请求超时（已熔断 {host}）：连续 {streak} 次超时（≥{_HTTP_TIMEOUT_STREAK_LIMIT}）。\n"
+                    f"本 session 内不再访问该 host。建议改用 browser_navigate 或换目标。"
+                )
+            return (
+                f"HTTP 请求超时 ({_HTTP_TIMEOUT_SECONDS:.0f}s, {streak}/{_HTTP_TIMEOUT_STREAK_LIMIT}): {host}\n"
+                f"({e.__class__.__name__})"
+            )
+        return f"HTTP 请求超时 ({_HTTP_TIMEOUT_SECONDS:.0f}s): {e}"
     except Exception as e:
         return f"HTTP 请求失败: {e}"

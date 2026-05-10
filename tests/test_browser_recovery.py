@@ -52,6 +52,40 @@ class TestRecognition:
         assert not _result_indicates_broken_pipe(None)
         assert not _result_indicates_broken_pipe(123)
 
+    # Bug 7 (Coco 报告): 页面正文若含 "broken pipe" 等技术词不应误触发重连
+    def test_result_does_not_match_page_content_with_pattern(self) -> None:
+        """页面正文（HTML / 技术文章）含 broken-pipe 关键字时不应误触发重连。"""
+        # 一个讨论 broken pipe 的技术文章页面正文
+        page_body = (
+            "<html><body><h1>Linux SIGPIPE 与 Broken pipe 详解</h1>"
+            "<p>当读端关闭后写入会触发 EPIPE 信号...</p>"
+            "<p>常见错误：Connection closed unexpectedly。</p></body></html>"
+        )
+        assert not _result_indicates_broken_pipe(page_body), (
+            "纯页面内容不应触发重连（Bug 7）"
+        )
+
+    def test_result_with_error_prefix_still_matches(self) -> None:
+        """工具的真错误信息（以错误前缀开头）仍应正确触发重连。"""
+        for err in (
+            "浏览器导航失败: Target closed",
+            "Page crashed: out of memory",
+            "Browser closed unexpectedly during operation",
+            "导航失败: Connection closed",
+            "EPIPE on socket write",
+        ):
+            assert _result_indicates_broken_pipe(err), f"应触发重连: {err!r}"
+
+    def test_result_without_error_prefix_not_matched(self) -> None:
+        """没有错误前缀的字符串（即使含 pattern）不触发，避免误判。"""
+        for body in (
+            "Discussion of EPIPE and SIGPIPE on Linux",
+            "How to handle Broken pipe in production",
+            "<p>The page crashed due to memory pressure</p>",
+            "GET /epipe-tutorial 200 OK",
+        ):
+            assert not _result_indicates_broken_pipe(body), f"不应触发: {body!r}"
+
 
 # ─── 装饰器行为 ─────────────────────────────────────────────────────────────
 

@@ -69,9 +69,23 @@ class ContextManager:
         cut = max(0, len(non_system) - keep_recent)
         while cut < len(non_system) and non_system[cut].get("role") == "tool":
             cut += 1
-        # 若全是 tool（极端），就不压缩
+        # Bug 6 (Coco 报告): 极端场景全 tool 消息 → 之前直接 return messages 不压缩，
+        # 长会话下会 token 溢出。改为强制截断到最近 keep_recent 条 + 跳过开头 tool 边界
         if cut >= len(non_system):
-            return messages
+            log_warning(
+                f"上下文极端场景（{len(non_system)} 条消息全是 tool 结果）：强制截断到最近 {keep_recent} 条"
+            )
+            forced_keep = non_system[-keep_recent:]
+            # tool message 必须跟在 assistant.tool_calls 之后，开头若是 tool 则丢弃
+            while forced_keep and forced_keep[0].get("role") == "tool":
+                forced_keep = forced_keep[1:]
+            summary_msg = {
+                "role": "user",
+                "content": "[上下文已强制截断：之前消息均为工具结果，已舍弃以避免 token 溢出]",
+            }
+            compressed = [*system_msgs, summary_msg, *forced_keep]
+            log_info(f"上下文强制截断: {len(messages)} → {len(compressed)} 条消息")
+            return compressed
         old_msgs = non_system[:cut]
         recent_msgs = non_system[cut:]
 

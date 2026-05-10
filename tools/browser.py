@@ -55,9 +55,40 @@ def _is_broken_pipe(exc: BaseException) -> bool:
 _T = TypeVar("_T")
 
 
+# Bug 7 (Coco 报告): 已知错误信息前缀。仅当返回字符串以这些前缀开头时才检查
+# broken-pipe 模式，避免误匹配页面正文（如讨论 broken pipe 的技术文章）。
+_ERROR_RESULT_PREFIXES: tuple[str, ...] = (
+    "浏览器",          # 中文工具错误（如"浏览器导航失败"）
+    "Playwright ",
+    "Page ",
+    "Target ",
+    "Browser ",
+    "Failed ",
+    "Error ",
+    "EPIPE",
+    "导航失败",
+    "访问失败",
+    "操作失败",
+    "执行失败",
+    "截图失败",
+    "上传失败",
+    "下载失败",
+    "点击失败",
+    "填写失败",
+    "切换标签",
+)
+
+
 def _result_indicates_broken_pipe(result: object) -> bool:
-    """browser_* 工具大多 try/except 后把异常转成失败字符串，需要从字符串里识别。"""
+    """browser_* 工具大多 try/except 后把异常转成失败字符串，需要从字符串里识别。
+
+    Bug 7 修复：原版本 `any(pat in result for pat in PATTERNS)` 会把含 "broken pipe"
+    "Page crashed" 等技术词的**正常页面正文**误判触发重连。改为：仅当结果以已知错误前缀
+    开头时才匹配 broken-pipe 模式。
+    """
     if not isinstance(result, str):
+        return False
+    if not result.startswith(_ERROR_RESULT_PREFIXES):
         return False
     return any(pat in result for pat in _BROKEN_PIPE_PATTERNS)
 

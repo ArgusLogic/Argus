@@ -191,3 +191,113 @@ class TestHttpResponseIntegrity:
             # 路径穿越被剥离 → 实际文件应在 downloads/passwd
             saved = tmp_path / "downloads" / "passwd"
             assert saved.exists()
+
+
+# ─── Bug 3 (Coco 报告): per-host 连续超时熔断 ──────────────────────────────
+
+
+class TestCircuitBreaker:
+    """per-host 连续 N 次超时 → 熔断本 session 内不再访问该 host。"""
+
+    @pytest.fixture(autouse=True)
+    def _reset_circuit(self):
+        """每个测试前清空熔断状态。"""
+        from tools.http_client import _reset_http_circuit
+
+        _reset_http_circuit()
+        yield
+        _reset_http_circuit()
+
+    async def test_timeout_increments_streak_below_threshold(self) -> None:
+        import httpx
+
+        from tools.http_client import _HTTP_HOST_CIRCUIT_OPEN, _HTTP_HOST_TIMEOUT_STREAK
+
+        with patch("tools.http_client.httpx.AsyncClient") as MockClient:
+            mock_client = MockClient.return_value.__aenter__.return_value
+            mock_client.request = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+
+            # 第 1 次超时
+            r1 = await http_request(url="https://slow.example/")
+            assert "超时" in r1
+            assert "[CIRCUIT_OPEN]" not in r1
+            assert _HTTP_HOST_TIMEOUT_STREAK.get("slow.example") == 1
+            assert "slow.example" not in _HTTP_HOST_CIRCUIT_OPEN
+
+            # 第 2 次
+            r2 = await http_request(url="https://slow.example/")
+            assert "[CIRCUIT_OPEN]" not in r2
+            assert _HTTP_HOST_TIMEOUT_STREAK.get("slow.example") == 2
+
+    async def test_three_timeouts_open_circuit(self) -> None:
+        import httpx
+
+        from tools.http_client import _HTTP_HOST_CIRCUIT_OPEN
+
+        with patch("tools.http_client.httpx.AsyncClient") as MockClient:
+            mock_client = MockClient.return_value.__aenter__.return_value
+            mock_client.request = AsyncMock(side_effect=httpx.TimeoutException("timeout"))
+
+            # 第 1+2 次 — 累计但不熔断
+            await http_request(url="https://dead.example/a")
+            await http_request(url="https://dead.example/b")
+            # 第 3 次 — 触发熔断
+            r3 = await http_request(url="https://dead.example/c")
+            assert "[CIRCUIT_OPEN]" in r3
+            assert "dead.example" in _HTTP_HOST_CIRCUIT_OPEN
+
+            # 后续任何请求该 host 都被立刻拒绝（不再发实际请求）
+            mock_client.request.reset_mock()
+            r4 = await http_request(url="https://dead.example/d")
+            assert "[CIRCUIT_OPEN]" in r4
+            assert "本 session 内不再访问" in r4
+            mock_client.request.assert_not_called(), "熔断后不应再调实际 httpx"
+
+    async def test_success_resets_streak(self) -> None:
+        """超时 1 次后成功一次，streak 应清零。"""
+        import httpx
+
+        from tools.http_client import _HTTP_HOST_TIMEOUT_STREAK
+
+        call_count = {"n": 0}
+
+        async def request_side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise httpx.TimeoutException("first timeout")
+            return _make_resp(body=b"ok")
+
+        with patch("tools.http_client.httpx.AsyncClient") as MockClient:
+            mock_client = MockClient.return_value.__aenter__.return_value
+            mock_client.request = AsyncMock(side_effect=request_side_effect)
+
+            await http_request(url="https://flaky.example/")
+            assert _HTTP_HOST_TIMEOUT_STREAK.get("flaky.example") == 1
+
+            await http_request(url="https://flaky.example/")
+            # 成功后清零
+            assert "flaky.example" not in _HTTP_HOST_TIMEOUT_STREAK
+
+    async def test_circuit_is_per_host_not_global(self) -> None:
+        """一个 host 熔断不影响其他 host。"""
+        import httpx
+
+        with patch("tools.http_client.httpx.AsyncClient") as MockClient:
+            mock_client = MockClient.return_value.__aenter__.return_value
+
+            # dead.example 总超时 → 熔断
+            mock_client.request = AsyncMock(side_effect=httpx.TimeoutException("t"))
+            for _ in range(3):
+                await http_request(url="https://dead.example/")
+
+            # other.example 是好的 → 仍能通
+            mock_client.request = AsyncMock(return_value=_make_resp(body=b"ok"))
+            r = await http_request(url="https://other.example/")
+            assert "状态码" in r
+            assert "[CIRCUIT_OPEN]" not in r
+
+    async def test_timeout_constant_is_30s(self) -> None:
+        """Bug 3 推荐 30s（之前 60s 太长）。"""
+        from tools.http_client import _HTTP_TIMEOUT_SECONDS
+
+        assert _HTTP_TIMEOUT_SECONDS == 30.0
